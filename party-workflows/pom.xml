@@ -20,6 +20,14 @@
             <artifactId>party-domain</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.telcobright.party</groupId>
+            <artifactId>party-master</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.telcobright.party</groupId>
+            <artifactId>party-tenant-projection</artifactId>
+        </dependency>
+        <dependency>
             <groupId>io.temporal</groupId>
             <artifactId>temporal-sdk</artifactId>
         </dependency>

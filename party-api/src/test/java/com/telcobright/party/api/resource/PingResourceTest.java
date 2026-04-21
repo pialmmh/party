@@ -18,4 +18,5 @@ class PingResourceTest {
                 .body("service", equalTo("party"))
                 .body("status", equalTo("ok"));
     }
+
 }
