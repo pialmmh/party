@@ -18,6 +18,7 @@
         <module>party-tenant-projection</module>
         <module>party-workflows</module>
         <module>party-api</module>
+        <module>party-keycloak-spi</module>
         <module>party-integration-test</module>
     </modules>
 
