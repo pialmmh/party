@@ -1,0 +1,17 @@
+target/
+.mvn/
+.settings/
+.project
+.classpath
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.log
+logs/
+.DS_Store
+.env
+.env.local
+hs_err_pid*.log
+dependency-reduced-pom.xml
