@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>FreeSwitch REST UI ↔ Party ↔ Temporal ↔ Tenant DB — Data Flow</title>
+<style>
+  :root {
+    --bg: #f3f4f6;
+    --surface: #ffffff;
+    --ink: #111827;
+    --muted: #6b7280;
+    --border: #d1d5db;
+
+    --c-browser: #3b82f6;
+    --c-keycloak: #7c3aed;
+    --c-party:   #059669;
+    --c-master:  #0891b2;
+    --c-temporal:#d97706;
+    --c-tenant:  #be185d;
+    --c-fsr:     #1f2937;
+    --c-read:    #16a34a;
+    --c-write:   #2563eb;
+    --c-kc-spi:  #7c3aed;
+    --c-sync:    #ea580c;
+  }
+  body {
+    font: 14px/1.45 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    margin: 0;
+    padding: 24px 32px 48px;
+  }
+  h1 { font-size: 20px; margin: 0 0 6px; }
+  h2 { font-size: 14px; color: var(--muted); margin: 0 0 24px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+  .legend {
+    display: flex; gap: 14px; flex-wrap: wrap;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 18px;
+    font-size: 12px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-swatch { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+  .canvas {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    overflow-x: auto;
+  }
+  svg { display: block; max-width: 100%; }
+
+  .legend-arrow { display: inline-block; width: 32px; height: 3px; border-radius: 2px; position: relative; }
+  .legend-arrow::after {
+    content: ''; position: absolute; right: -2px; top: -3px;
+    border-left: 7px solid currentColor; border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+  }
+
+  table.steps {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 18px;
+    background: var(--surface);
+    border-radius: 10px;
+    overflow: hidden;
+    font-size: 13px;
+    border: 1px solid var(--border);
+  }
+  table.steps th { background: #f9fafb; padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); border-bottom: 1px solid var(--border); }
+  table.steps td { padding: 9px 12px; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
+  table.steps td:first-child { width: 40px; font-weight: 700; color: var(--c-write); }
+  table.steps td.endpoint { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 12px; color: #1e40af; white-space: nowrap; }
+  table.steps tr:last-child td { border-bottom: none; }
+
+  .phase-header td {
+    background: #f3f4f6;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    padding: 6px 12px !important;
+  }
+
+  .note {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-left: 3px solid var(--c-party);
+    background: #ecfdf5;
+    border-radius: 0 6px 6px 0;
+    color: #064e3b;
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<h1>FreeSwitch REST UI ↔ Party Service ↔ Temporal ↔ Tenant DB</h1>
+<h2>Data-flow diagram (write path + async projection + local read)</h2>
+
+<div class="legend">
+  <span class="legend-item"><span class="legend-swatch" style="background: var(--c-browser)"></span>Browser / UI</span>
+  <span class="legend-item"><span class="legend-swatch" style="background: var(--c-keycloak)"></span>Keycloak</span>
+  <span class="legend-item"><span class="legend-swatch" style="background: var(--c-party)"></span>Party service</span>
+  <span class="legend-item"><span class="legend-swatch" style="background: var(--c-master)"></span>party_master DB</span>
+  <span class="legend-item"><span class="legend-swatch" style="background: var(--c-temporal)"></span>Temporal</span>
+  <span class="legend-item"><span class="legend-swatch" style="background: var(--c-tenant)"></span>Per-tenant DB</span>
+  <span class="legend-item"><span class="legend-swatch" style="background: var(--c-fsr)"></span>FreeSwitch REST backend</span>
+  <span style="width: 1px; background: var(--border);"></span>
+  <span class="legend-item" style="color: var(--c-kc-spi)"><span class="legend-arrow" style="background: var(--c-kc-spi)"></span>OIDC / SPI</span>
+  <span class="legend-item" style="color: var(--c-write)"><span class="legend-arrow" style="background: var(--c-write)"></span>Authoritative write</span>
+  <span class="legend-item" style="color: var(--c-sync)"><span class="legend-arrow" style="background: var(--c-sync)"></span>Async sync (Temporal)</span>
+  <span class="legend-item" style="color: var(--c-read)"><span class="legend-arrow" style="background: var(--c-read)"></span>Local read</span>
+</div>
+
+<div class="canvas">
+<svg viewBox="0 0 1200 680" xmlns="http://www.w3.org/2000/svg">
+
+<!-- Arrow markers -->
+<defs>
+  <marker id="a-write" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M 0 0 L 10 5 L 0 10 z" fill="#2563eb"/>
+  </marker>
+  <marker id="a-sync" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M 0 0 L 10 5 L 0 10 z" fill="#ea580c"/>
+  </marker>
+  <marker id="a-read" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M 0 0 L 10 5 L 0 10 z" fill="#16a34a"/>
+  </marker>
+  <marker id="a-kc" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M 0 0 L 10 5 L 0 10 z" fill="#7c3aed"/>
+  </marker>
+</defs>
+
+<!-- === Layer labels (left) === -->
+<text x="20" y="70" font-size="11" font-weight="600" fill="#6b7280" text-transform="uppercase" letter-spacing="0.5px">UI / CLIENT</text>
+<text x="20" y="200" font-size="11" font-weight="600" fill="#6b7280" text-transform="uppercase" letter-spacing="0.5px">AUTHN</text>
+<text x="20" y="340" font-size="11" font-weight="600" fill="#6b7280" text-transform="uppercase" letter-spacing="0.5px">WRITE PATH</text>
+<text x="20" y="490" font-size="11" font-weight="600" fill="#6b7280" text-transform="uppercase" letter-spacing="0.5px">ASYNC SYNC</text>
+<text x="20" y="620" font-size="11" font-weight="600" fill="#6b7280" text-transform="uppercase" letter-spacing="0.5px">READ PATH</text>
+
+<!-- === Browser / FSR UI === -->
+<g>
+  <rect x="110" y="40" width="220" height="60" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+  <text x="220" y="65" text-anchor="middle" font-size="13" font-weight="700" fill="#1e3a8a">FreeSwitch REST UI</text>
+  <text x="220" y="82" text-anchor="middle" font-size="11" fill="#1e40af">React SPA (browser)</text>
+</g>
+
+<!-- === Keycloak === -->
+<g>
+  <rect x="480" y="160" width="220" height="80" rx="8" fill="#faf5ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="590" y="185" text-anchor="middle" font-size="13" font-weight="700" fill="#4c1d95">Keycloak</text>
+  <text x="590" y="203" text-anchor="middle" font-size="11" fill="#5b21b6">realm: tenant-btcl-btcl</text>
+  <text x="590" y="220" text-anchor="middle" font-size="10" fill="#6b21a8" font-family="monospace">issues JWT with</text>
+  <text x="590" y="232" text-anchor="middle" font-size="10" fill="#6b21a8" font-family="monospace">tenantId, partnerId, roles[]</text>
+</g>
+
+<!-- === Party /internal/kc/* === -->
+<g>
+  <rect x="820" y="160" width="220" height="80" rx="8" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
+  <text x="930" y="185" text-anchor="middle" font-size="13" font-weight="700" fill="#064e3b">Party /internal/kc/*</text>
+  <text x="930" y="203" text-anchor="middle" font-size="11" fill="#047857">User Storage SPI target</text>
+  <text x="930" y="220" text-anchor="middle" font-size="10" fill="#065f46" font-family="monospace">by-username · by-id</text>
+  <text x="930" y="232" text-anchor="middle" font-size="10" fill="#065f46" font-family="monospace">validate-credentials</text>
+</g>
+
+<!-- === Party REST (write-path) === -->
+<g>
+  <rect x="480" y="300" width="220" height="80" rx="8" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
+  <text x="590" y="325" text-anchor="middle" font-size="13" font-weight="700" fill="#064e3b">Party REST API</text>
+  <text x="590" y="343" text-anchor="middle" font-size="11" fill="#047857">/api/v1/tenants/{id}/...</text>
+  <text x="590" y="360" text-anchor="middle" font-size="10" fill="#065f46" font-family="monospace">PartnerService · AuthUserService</text>
+  <text x="590" y="372" text-anchor="middle" font-size="10" fill="#065f46" font-family="monospace">AuthRoleService · ...</text>
+</g>
+
+<!-- === party_master DB === -->
+<g>
+  <rect x="820" y="300" width="220" height="80" rx="8" fill="#ecfeff" stroke="#0891b2" stroke-width="2"/>
+  <text x="930" y="325" text-anchor="middle" font-size="13" font-weight="700" fill="#164e63">party_master (Galera)</text>
+  <text x="930" y="343" text-anchor="middle" font-size="11" fill="#0e7490">source of truth</text>
+  <text x="930" y="360" text-anchor="middle" font-size="10" fill="#155e75" font-family="monospace">partner · auth_user · auth_role</text>
+  <text x="930" y="372" text-anchor="middle" font-size="10" fill="#155e75" font-family="monospace">tenant_sync_job</text>
+</g>
+
+<!-- === Temporal === -->
+<g>
+  <rect x="480" y="440" width="220" height="80" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+  <text x="590" y="465" text-anchor="middle" font-size="13" font-weight="700" fill="#78350f">Temporal</text>
+  <text x="590" y="483" text-anchor="middle" font-size="11" fill="#92400e">party-sync-queue</text>
+  <text x="590" y="500" text-anchor="middle" font-size="10" fill="#78350f" font-family="monospace">SyncEntityWorkflow</text>
+  <text x="590" y="512" text-anchor="middle" font-size="10" fill="#78350f" font-family="monospace">durable, retryable</text>
+</g>
+
+<!-- === Party worker (runs activity) === -->
+<g>
+  <rect x="820" y="440" width="220" height="80" rx="8" fill="#ecfdf5" stroke="#059669" stroke-width="2" stroke-dasharray="5,3"/>
+  <text x="930" y="465" text-anchor="middle" font-size="13" font-weight="700" fill="#064e3b">Party worker</text>
+  <text x="930" y="483" text-anchor="middle" font-size="11" fill="#047857">TenantWriteActivity</text>
+  <text x="930" y="500" text-anchor="middle" font-size="10" fill="#065f46" font-family="monospace">reads master → upserts tenant</text>
+  <text x="930" y="512" text-anchor="middle" font-size="10" fill="#065f46" font-family="monospace">INSERT ... ON DUPLICATE KEY</text>
+</g>
+
+<!-- === per-tenant DB === -->
+<g>
+  <rect x="820" y="580" width="220" height="80" rx="8" fill="#fdf2f8" stroke="#be185d" stroke-width="2"/>
+  <text x="930" y="605" text-anchor="middle" font-size="13" font-weight="700" fill="#831843">btcl_1_btcl_1 (tenant DB)</text>
+  <text x="930" y="623" text-anchor="middle" font-size="11" fill="#9f1239">local projection for services</text>
+  <text x="930" y="640" text-anchor="middle" font-size="10" fill="#9d174d" font-family="monospace">partner · auth_user · auth_role</text>
+  <text x="930" y="652" text-anchor="middle" font-size="10" fill="#9d174d" font-family="monospace">auth_user_role · ... (eventual)</text>
+</g>
+
+<!-- === FreeSwitch REST backend === -->
+<g>
+  <rect x="480" y="580" width="220" height="80" rx="8" fill="#f3f4f6" stroke="#1f2937" stroke-width="2"/>
+  <text x="590" y="605" text-anchor="middle" font-size="13" font-weight="700" fill="#111827">FreeSwitch REST backend</text>
+  <text x="590" y="623" text-anchor="middle" font-size="11" fill="#374151">Spring Boot (smsrest, fsrest)</text>
+  <text x="590" y="640" text-anchor="middle" font-size="10" fill="#4b5563" font-family="monospace">reads LOCAL tenant DB only</text>
+  <text x="590" y="652" text-anchor="middle" font-size="10" fill="#4b5563" font-family="monospace">never calls Party REST</text>
+</g>
+
+<!-- === Arrows === -->
+
+<!-- (1) UI → Keycloak (OIDC login) -->
+<g stroke="#7c3aed" stroke-width="2" fill="none">
+  <path d="M 280 100 C 340 100, 380 160, 480 180" marker-end="url(#a-kc)"/>
+</g>
+<text x="295" y="130" font-size="11" fill="#7c3aed" font-weight="700">1. OIDC login</text>
+<text x="295" y="145" font-size="10" fill="#6b21a8" font-family="monospace">POST /realms/tenant-.../token</text>
+
+<!-- (2) Keycloak → Party SPI -->
+<g stroke="#7c3aed" stroke-width="2" fill="none">
+  <path d="M 700 200 L 820 200" marker-end="url(#a-kc)"/>
+</g>
+<text x="720" y="190" font-size="11" fill="#7c3aed" font-weight="700">2. User Storage SPI</text>
+<text x="720" y="210" font-size="10" fill="#6b21a8" font-family="monospace">validate creds + fetch attrs</text>
+
+<!-- (3) Keycloak → UI (token) -->
+<g stroke="#7c3aed" stroke-width="2" fill="none" stroke-dasharray="4,3">
+  <path d="M 480 175 C 380 110, 340 90, 300 95" marker-end="url(#a-kc)"/>
+</g>
+<text x="330" y="80" font-size="11" fill="#7c3aed" font-weight="700">3. JWT ← Keycloak</text>
+
+<!-- (4) UI → Party REST (write) -->
+<g stroke="#2563eb" stroke-width="2.5" fill="none">
+  <path d="M 220 100 L 220 260 L 480 320" marker-end="url(#a-write)"/>
+</g>
+<text x="85" y="180" font-size="11" fill="#2563eb" font-weight="700">4. POST /partners</text>
+<text x="85" y="195" font-size="10" fill="#1e40af" font-family="monospace">Authorization: Bearer</text>
+<text x="85" y="207" font-size="10" fill="#1e40af" font-family="monospace">&lt;keycloak JWT&gt;</text>
+
+<!-- (5) Party → master DB -->
+<g stroke="#2563eb" stroke-width="2.5" fill="none">
+  <path d="M 700 340 L 820 340" marker-end="url(#a-write)"/>
+</g>
+<text x="715" y="330" font-size="11" fill="#2563eb" font-weight="700">5. INSERT partner</text>
+<text x="715" y="395" font-size="10" fill="#1e40af" font-family="monospace">+ INSERT tenant_sync_job</text>
+
+<!-- (6) Party → Temporal (start workflow) -->
+<g stroke="#ea580c" stroke-width="2.5" fill="none">
+  <path d="M 590 380 L 590 440" marker-end="url(#a-sync)"/>
+</g>
+<text x="395" y="410" font-size="11" fill="#ea580c" font-weight="700">6. start workflow</text>
+<text x="395" y="423" font-size="10" fill="#9a3412" font-family="monospace">syncEntityWorkflow(</text>
+<text x="395" y="435" font-size="10" fill="#9a3412" font-family="monospace"> tenantId=5, PARTNER, id=42)</text>
+
+<!-- (7) Temporal → worker (task) -->
+<g stroke="#ea580c" stroke-width="2.5" fill="none">
+  <path d="M 700 480 L 820 480" marker-end="url(#a-sync)"/>
+</g>
+<text x="715" y="470" font-size="11" fill="#ea580c" font-weight="700">7. dispatch task</text>
+<text x="715" y="530" font-size="10" fill="#9a3412" font-family="monospace">any of 3 Party instances</text>
+
+<!-- (8) worker reads master -->
+<g stroke="#ea580c" stroke-width="2" fill="none" stroke-dasharray="4,3">
+  <path d="M 930 440 L 930 380" marker-end="url(#a-sync)"/>
+</g>
+<text x="945" y="415" font-size="10" fill="#9a3412" font-family="monospace">8. read latest</text>
+<text x="945" y="428" font-size="10" fill="#9a3412" font-family="monospace">   master row</text>
+
+<!-- (9) worker writes tenant DB -->
+<g stroke="#ea580c" stroke-width="2.5" fill="none">
+  <path d="M 930 520 L 930 580" marker-end="url(#a-sync)"/>
+</g>
+<text x="945" y="545" font-size="11" fill="#ea580c" font-weight="700">9. UPSERT</text>
+<text x="945" y="560" font-size="10" fill="#9a3412" font-family="monospace">into tenant DB</text>
+
+<!-- (10) FSR backend reads local -->
+<g stroke="#16a34a" stroke-width="2.5" fill="none">
+  <path d="M 820 620 L 700 620" marker-end="url(#a-read)"/>
+</g>
+<text x="715" y="610" font-size="11" fill="#16a34a" font-weight="700">10. SELECT (local)</text>
+<text x="715" y="670" font-size="10" fill="#14532d" font-family="monospace">routing, auth, billing</text>
+
+<!-- (11) FSR UI ← FSR backend -->
+<g stroke="#16a34a" stroke-width="2.5" fill="none">
+  <path d="M 480 620 L 300 620 C 260 620, 220 400, 220 110" marker-end="url(#a-read)"/>
+</g>
+<text x="85" y="340" font-size="11" fill="#16a34a" font-weight="700">11. GET /fsrest/...</text>
+<text x="85" y="355" font-size="10" fill="#14532d" font-family="monospace">UI displays local data</text>
+<text x="85" y="367" font-size="10" fill="#14532d" font-family="monospace">(eventual consistency)</text>
+
+</svg>
+</div>
+
+<table class="steps">
+  <thead>
+    <tr><th>#</th><th>Actor</th><th>Action</th><th>Endpoint / detail</th></tr>
+  </thead>
+  <tbody>
+
+    <tr class="phase-header"><td colspan="4">Phase A — Authentication (Keycloak handles it; Party just stores the truth)</td></tr>
+
+    <tr>
+      <td>1</td>
+      <td>FSR UI → Keycloak</td>
+      <td>User submits email + password; UI requests a token.</td>
+      <td class="endpoint">POST /realms/tenant-btcl-btcl/protocol/openid-connect/token</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td>Keycloak → Party SPI</td>
+      <td>Keycloak delegates user lookup + credential validation to the <em>party-user-storage</em> provider (jar deployed in Keycloak). The provider calls Party over HTTP with a shared-secret header.</td>
+      <td class="endpoint">GET /api/v1/internal/kc/users/by-username<br/>POST /api/v1/internal/kc/users/validate-credentials</td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td>Keycloak → FSR UI</td>
+      <td>Token issued; Keycloak protocol mappers inject <code>operatorId</code>, <code>tenantId</code>, <code>partnerId</code>, <code>roles[]</code>, <code>permissions[]</code> as claims.</td>
+      <td class="endpoint">{ access_token, refresh_token, id_token }</td>
+    </tr>
+
+    <tr class="phase-header"><td colspan="4">Phase B — Write path (admin creates / updates / deletes a partner, user, role, etc.)</td></tr>
+
+    <tr>
+      <td>4</td>
+      <td>FSR UI → Party REST</td>
+      <td>UI calls Party with the Keycloak bearer token. Party verifies the token against Keycloak JWKS and checks the caller's scope/tenantId claim.</td>
+      <td class="endpoint">POST /api/v1/tenants/5/partners<br/>Authorization: Bearer &lt;kc JWT&gt;</td>
+    </tr>
+    <tr>
+      <td>5</td>
+      <td>Party → party_master</td>
+      <td><strong>Single transaction:</strong> INSERT the partner row + INSERT a <code>tenant_sync_job</code> row (status=PENDING). Both committed before response.</td>
+      <td class="endpoint">INSERT INTO partner (...)<br/>INSERT INTO tenant_sync_job (entityType=PARTNER, op=CREATE, ...)</td>
+    </tr>
+    <tr>
+      <td>6</td>
+      <td>Party → Temporal</td>
+      <td>After the transaction commits, Party starts a <code>SyncEntityWorkflow</code> on the <code>party-sync-queue</code>. Non-blocking; UI gets 200 immediately.</td>
+      <td class="endpoint">WorkflowClient.start(wf::sync, 5, PARTNER, "42", CREATE, jobId)</td>
+    </tr>
+
+    <tr class="phase-header"><td colspan="4">Phase C — Async projection to the per-tenant DB (Temporal drives this; can be seconds later)</td></tr>
+
+    <tr>
+      <td>7</td>
+      <td>Temporal → Party worker</td>
+      <td>Any one of the 3 active-active Party instances pulls the task (all 3 register on all 3 queues). Worker invokes <code>TenantWriteActivity</code>.</td>
+      <td class="endpoint">activity.apply(5, PARTNER, CREATE, "42")</td>
+    </tr>
+    <tr>
+      <td>8</td>
+      <td>Worker → party_master</td>
+      <td>Activity reads the latest master row (handles the case where CREATE then UPDATE arrive out of order: always projects current master state).</td>
+      <td class="endpoint">SELECT * FROM partner WHERE id = 42</td>
+    </tr>
+    <tr>
+      <td>9</td>
+      <td>Worker → tenant DB</td>
+      <td>Idempotent upsert against <code>btcl_1_btcl_1.partner</code> so retries are safe. On success, <code>SyncAuditActivity.markSuccess(jobId)</code> flips the job row to SUCCESS.</td>
+      <td class="endpoint">INSERT INTO partner (...) ON DUPLICATE KEY UPDATE ...</td>
+    </tr>
+
+    <tr class="phase-header"><td colspan="4">Phase D — Read path (FSR UI reads via FSR backend; only Keycloak ever calls Party)</td></tr>
+
+    <tr>
+      <td>10</td>
+      <td>FSR backend → tenant DB</td>
+      <td>FreeSwitch REST Spring Boot service queries its local tenant DB for partners / users / roles / permissions. No network hop to Party. Eventual consistency window = Phase C duration.</td>
+      <td class="endpoint">SELECT * FROM partner WHERE partner_name = ?</td>
+    </tr>
+    <tr>
+      <td>11</td>
+      <td>FSR UI ← FSR backend</td>
+      <td>UI renders the data that just landed. If Temporal lag is visible, UI shows a small <em>⋯ syncing</em> chip next to the row; once Phase C completes the chip becomes <em>✓ synced</em>.</td>
+      <td class="endpoint">GET /fsrest/partners (FSR-owned endpoint)</td>
+    </tr>
+
+  </tbody>
+</table>
+
+<div class="note">
+  <strong>Invariants to remember:</strong>
+  <ul style="margin: 6px 0 0 18px; padding: 0;">
+    <li><strong>Party is the source of truth</strong>; the tenant DB is a projection. Reads from the tenant DB may lag by a few seconds after a write.</li>
+    <li><strong>Only Keycloak calls <code>/internal/kc/*</code></strong> — these endpoints are guarded by a shared secret and must not be exposed to the public LB.</li>
+    <li><strong>Only admins call Party's CRUD</strong> via the UI (FSR UI or the dedicated Party admin UI). FSR <em>runtime</em> services never call Party.</li>
+    <li><strong>Same sequence for auth_user, auth_role, auth_permission, auth_user_role, auth_role_permission, ip_access_rule, ui_menu_permission, partner_extra</strong> — only the entity type in step 5/8/9 changes; the flow is identical.</li>
+    <li><strong>DELETE goes the same route</strong>: master row marked / deleted → sync job → projection DELETE. Retry semantics identical because all projection SQL is idempotent.</li>
+  </ul>
+</div>
+
+</body>
+</html>
