@@ -21,8 +21,6 @@ public class AuthUserResource {
     @Inject IpAccessRuleService ipRules;
     @Inject UiMenuPermissionService menuPerms;
 
-    public record CreateUserRequest(String email, String password, String firstName, String lastName,
-                                    String phone) {}
     public record PasswordRequest(String password) {}
     public record RolesRequest(List<Long> roleIds) {}
     public record IpRuleRequest(String ip, String permissionType) {}
@@ -31,23 +29,6 @@ public class AuthUserResource {
     @GET @Path("/users")
     public List<AuthUser> listAllByTenant(@PathParam("tenantId") Long tenantId) {
         return users.listByTenant(tenantId);
-    }
-
-    @GET @Path("/partners/{partnerId}/users")
-    public List<AuthUser> listByPartner(@PathParam("tenantId") Long tenantId,
-                                        @PathParam("partnerId") Long partnerId) {
-        return users.listByPartner(tenantId, partnerId);
-    }
-
-    @POST @Path("/partners/{partnerId}/users")
-    public AuthUser create(@PathParam("tenantId") Long tenantId,
-                           @PathParam("partnerId") Long partnerId,
-                           CreateUserRequest r) {
-        AuthUser details = new AuthUser();
-        details.firstName = r.firstName();
-        details.lastName = r.lastName();
-        details.phone = r.phone();
-        return users.create(tenantId, partnerId, r.email(), r.password(), details);
     }
 
     @GET @Path("/users/{id}")

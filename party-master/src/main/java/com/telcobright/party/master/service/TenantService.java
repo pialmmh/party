@@ -8,18 +8,32 @@ import com.telcobright.party.master.entity.TenantSyncJob;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.NotFoundException;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.util.List;
+import java.util.Set;
 
 @ApplicationScoped
 public class TenantService {
 
+    /** Apps the API will provision today. Single-app-per-tenant per design. */
+    private static final Set<String> SUPPORTED_APPS = Set.of("orchestrix");
+
     @Inject TenantSyncJobService syncJobs;
     @Inject SyncDispatcher dispatcher;
 
+    /** Operator slug bound at JVM startup via PartyProfileConfigSource. */
+    @ConfigProperty(name = "party.operator.name") String boundOperatorName;
+
     public List<Tenant> listByOperator(Long operatorId) {
         return Tenant.list("operatorId", operatorId);
+    }
+
+    public List<Tenant> listForBoundOperator() {
+        Operator op = boundOperator();
+        return Tenant.list("operatorId", op.id);
     }
 
     public Tenant findById(Long id) {
@@ -32,19 +46,44 @@ public class TenantService {
     public Tenant create(Long operatorId, Tenant t) {
         Operator op = Operator.findById(operatorId);
         if (op == null) throw new NotFoundException("operator " + operatorId + " not found");
-        t.operatorId = operatorId;
+        return createUnder(op, t);
+    }
+
+    @Transactional
+    public Tenant createForBoundOperator(Tenant t) {
+        return createUnder(boundOperator(), t);
+    }
+
+    private Tenant createUnder(Operator op, Tenant t) {
+        if (t.appName == null || t.appName.isBlank()) t.appName = "orchestrix";
+        if (!SUPPORTED_APPS.contains(t.appName)) {
+            throw new BadRequestException("appName '" + t.appName + "' not supported. supported=" + SUPPORTED_APPS);
+        }
+        t.operatorId = op.id;
         if (t.status == null) t.status = "PROVISIONING";
+        // Server-computed DB coordinates. Naming convention: <shortName>_<appName>.
+        // Underscore-only so the identifier is valid in SQL without quoting.
+        t.dbName = sanitize(t.shortName) + "_" + sanitize(t.appName);
+        if (t.dbHost == null || t.dbHost.isBlank()) t.dbHost = "127.0.0.1";
         if (t.dbPort == null) t.dbPort = 3306;
-        if (t.dbName == null) t.dbName = computeDbName(op.shortName, op.id, t.shortName);
+        if (t.dbUser == null || t.dbUser.isBlank()) t.dbUser = "party_app";
+        if (t.dbPassRef == null || t.dbPassRef.isBlank()) t.dbPassRef = "PARTY_TENANT_DB_PASS";
         t.persist();
 
-        // enqueue provisioning job
+        // enqueue provisioning audit + dispatch (NoopSyncDispatcher in dev — no real Temporal call)
         TenantSyncJob job = syncJobs.enqueue(t.id, EntityType.TENANT_PROVISION, String.valueOf(t.id), SyncOperation.PROVISION);
         dispatcher.dispatch(job);
-
-        // finalize db_name now that tenant.id is known (op-short + op-id + tenant-short + tenant-id)
-        t.dbName = computeDbName(op.shortName, op.id, t.shortName) + "_" + t.id;
         return t;
+    }
+
+    private Operator boundOperator() {
+        Operator op = Operator.find("shortName", boundOperatorName).firstResult();
+        if (op == null) {
+            throw new NotFoundException(
+                    "bound operator '" + boundOperatorName + "' (party.operator.name) not found in master DB. "
+                  + "Re-run Flyway or insert the row.");
+        }
+        return op;
     }
 
     @Transactional

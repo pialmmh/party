@@ -6,12 +6,24 @@ import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 
+import java.util.List;
+
 @Path("/tenants")
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
 public class TenantResource {
 
     @Inject TenantService service;
+
+    @GET
+    public List<Tenant> listForBoundOperator() {
+        return service.listForBoundOperator();
+    }
+
+    @POST
+    public Tenant createForBoundOperator(Tenant t) {
+        return service.createForBoundOperator(t);
+    }
 
     @GET @Path("/{id}")
     public Tenant get(@PathParam("id") Long id) { return service.findById(id); }

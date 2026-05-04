@@ -29,7 +29,7 @@ class CrudFlowTest {
         operatorId = given()
                 .contentType(ContentType.JSON)
                 .body(Map.of(
-                        "shortName", "btcl",
+                        "shortName", "btcl_test",
                         "fullName", "Bangladesh Telecommunications Company Ltd",
                         "operatorType", "MNO",
                         "companyName", "BTCL",
@@ -38,7 +38,7 @@ class CrudFlowTest {
                 .when().post("/operators")
                 .then()
                 .statusCode(200)
-                .body("shortName", equalTo("btcl"))
+                .body("shortName", equalTo("btcl_test"))
                 .body("id", notNullValue())
                 .extract().jsonPath().getLong("id");
     }
@@ -48,7 +48,7 @@ class CrudFlowTest {
         tenantId = given()
                 .contentType(ContentType.JSON)
                 .body(Map.of(
-                        "shortName", "btcl",
+                        "shortName", "btcl_test",
                         "fullName", "BTCL primary tenant",
                         "dbHost", "127.0.0.1",
                         "dbPort", 3306,
@@ -57,7 +57,7 @@ class CrudFlowTest {
                 .when().post("/operators/" + operatorId + "/tenants")
                 .then()
                 .statusCode(200)
-                .body("shortName", equalTo("btcl"))
+                .body("shortName", equalTo("btcl_test"))
                 .extract().jsonPath().getLong("id");
     }
 

@@ -60,6 +60,9 @@ public class Tenant extends PanacheEntityBase {
     @Column(nullable = false, length = 20)
     public String status;
 
+    @Column(name = "app_name", nullable = false, length = 40)
+    public String appName = "orchestrix";
+
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     public Instant createdAt;
 
