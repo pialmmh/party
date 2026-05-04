@@ -1,0 +1,44 @@
+[Unit]
+Description=Party Service — multi-tenant identity & authorization
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=party
+Group=party
+
+# Runtime env + secrets. Written by remote-setup.sh from the deploy host.
+EnvironmentFile=/etc/party/party.env
+
+WorkingDirectory=/opt/party
+
+# The uber JAR is the quarkus-app/quarkus-run.jar, packaged under /opt/party/.
+# Operator + profile are passed as system properties — they take precedence
+# over the application.properties `party.operators[N]` entries inside the JAR.
+ExecStart=/bin/bash -c '/usr/bin/java \
+    ${JVM_DEBUG_PORT:+-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:${JVM_DEBUG_PORT}} \
+    -Xms${JVM_HEAP_MIN} -Xmx${JVM_HEAP_MAX} \
+    -XX:+Use${JVM_GC_TYPE} -XX:MaxGCPauseMillis=${JVM_GC_MAX_PAUSE} \
+    ${JVM_OPTIONS} \
+    -Dparty.operator.name=${PARTY_OPERATOR_NAME} \
+    -Dparty.operator.profile=${PARTY_OPERATOR_PROFILE} \
+    -jar /opt/party/quarkus-app/quarkus-run.jar'
+
+Restart=on-failure
+RestartSec=10
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+StandardOutput=append:/var/log/party/party.log
+StandardError=append:/var/log/party/party-error.log
+SyslogIdentifier=party
+
+NoNewPrivileges=true
+PrivateTmp=false
+
+LimitNOFILE=65536
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target

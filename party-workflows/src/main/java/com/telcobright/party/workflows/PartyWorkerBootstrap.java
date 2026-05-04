@@ -43,7 +43,10 @@ public class PartyWorkerBootstrap {
     void onStart(@Observes StartupEvent ev) {
         LOG.infof("Starting Temporal worker target=%s ns=%s", target, namespace);
         service = WorkflowServiceStubs.newServiceStubs(
-                WorkflowServiceStubsOptions.newBuilder().setTarget(target).build());
+                WorkflowServiceStubsOptions.newBuilder()
+                        .setTarget(target)
+                        .setEnableHttps(false)
+                        .build());
         WorkflowClient client = WorkflowClient.newInstance(service);
         factory = WorkerFactory.newInstance(client);
 

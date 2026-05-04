@@ -28,7 +28,10 @@ public class TemporalSyncDispatcher implements SyncDispatcher {
     @PostConstruct
     void init() {
         var stubs = WorkflowServiceStubs.newServiceStubs(
-                WorkflowServiceStubsOptions.newBuilder().setTarget(target).build());
+                WorkflowServiceStubsOptions.newBuilder()
+                        .setTarget(target)
+                        .setEnableHttps(false)
+                        .build());
         client = WorkflowClient.newInstance(stubs);
     }
 

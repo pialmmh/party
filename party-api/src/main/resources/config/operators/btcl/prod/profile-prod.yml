@@ -1,0 +1,79 @@
+# ============================================================================
+# Party — operator=btcl / profile=prod
+# ============================================================================
+# Production profile for the BTCL cluster (kafka1/kafka2/kafka3 VMs on the
+# 10.10.0.0/16 WireGuard overlay).
+#
+# Galera:   sequential://  — MariaDB Connector/J picks the first healthy node
+#                             from the list; matches Galera's single-writer
+#                             invariant under load.
+# Temporal: dns:///        — gRPC client-side round-robin + failover across
+#                             the 3 frontend addresses.
+# Keycloak: admin REST is OFF by default. Flip PARTY_KC_ADMIN_ENABLED=true
+#           (via the env file on the remote host) once a Keycloak instance is
+#           reachable over the overlay.
+# Secrets:  PARTY_DB_PASSWORD, PARTY_JWT_SECRET, PARTY_KC_INTEGRATION_SECRET
+#           are NEVER baked into this YAML. They come from the remote env file
+#           /etc/party/party.env (written by remote-setup.sh from
+#           ~/.secrets/party-btcl.env on the deploy host).
+# ============================================================================
+
+quarkus:
+  http:
+    port: 18081
+    root-path: /api/v1
+  log:
+    level: INFO
+    category:
+      "com.telcobright.party":
+        level: INFO
+    console:
+      format: "%d{yyyy-MM-dd HH:mm:ss,SSS} %-5p [%c{3.}] (%t) %s%e%n"
+    file:
+      enable: true
+      path: /var/log/party/party.log
+      rotation:
+        max-file-size: 100M
+        max-backup-index: 10
+  smallrye-health:
+    root-path: /q/health
+  micrometer:
+    export:
+      prometheus:
+        path: /q/metrics
+  datasource:
+    username: party
+    password: "${PARTY_DB_PASSWORD}"
+    jdbc:
+      url: "jdbc:mariadb:sequential://10.10.199.20:3306,10.10.198.20:3306,10.10.197.20:3306/party_master"
+      max-size: 30
+      min-size: 5
+
+party:
+  jwt:
+    secret: "${PARTY_JWT_SECRET}"
+    issuer: party-service
+    access-ttl-minutes: 15
+    refresh-ttl-minutes: 1440
+
+  kc-integration:
+    secret: "${PARTY_KC_INTEGRATION_SECRET}"
+
+  keycloak:
+    admin:
+      enabled: "${PARTY_KC_ADMIN_ENABLED:false}"
+      url: "${PARTY_KC_ADMIN_URL:http://10.10.199.20:7104}"
+      realm: "${PARTY_KC_ADMIN_REALM:master}"
+      client-id: "${PARTY_KC_ADMIN_CLIENT_ID:admin-cli}"
+      username: "${PARTY_KC_ADMIN_USER:admin}"
+      password: "${PARTY_KC_ADMIN_PASS:}"
+
+  temporal:
+    enabled: true
+    target: "dns:///10.10.199.20:7233,10.10.198.20:7233,10.10.197.20:7233"
+    namespace: party-prod
+
+  task-queue:
+    sync: party-sync-queue
+    bulk: party-bulk-queue
+    critical: party-critical-queue
