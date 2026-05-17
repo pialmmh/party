@@ -1,6 +1,5 @@
 package com.telcobright.party.keycloak;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import org.keycloak.component.ComponentModel;
 import org.keycloak.credential.CredentialInput;
 import org.keycloak.credential.CredentialInputValidator;
@@ -17,6 +16,24 @@ import org.keycloak.storage.user.UserQueryProvider;
 import java.util.Map;
 import java.util.stream.Stream;
 
+/**
+ * User Storage Provider that federates users from Party (v2 / stateless).
+ *
+ * Key idea: getUserByUsername does NOT make a remote call. It returns a "shell"
+ * UserModel carrying only the username — that's enough for Keycloak to proceed to
+ * credential validation. The shell is then populated by {@link #isValid} when
+ * /v2/auth/validate returns a user record. By the time Keycloak issues a token,
+ * the shell has email + displayName + roles attached.
+ *
+ * This lets Party stay stateless: it never has to expose a "find user without
+ * password" endpoint, because Keycloak's flow always presents the password
+ * before any profile data needs to be served.
+ *
+ * Caveat — if Keycloak is configured in NO_IMPORT federation mode and refreshes
+ * a token outside of a password presentation, getUserById will return a shell
+ * without profile data. Set the federation provider to IMPORT mode (or
+ * UNSYNCED with cache) in the Keycloak realm so cached data survives.
+ */
 class PartyUserStorageProvider implements
         UserStorageProvider,
         UserLookupProvider,
@@ -33,21 +50,19 @@ class PartyUserStorageProvider implements
         this.client = client;
     }
 
-    // ---------- UserLookupProvider ----------
+    // ── UserLookupProvider ────────────────────────────────────────────────
 
     @Override
     public UserModel getUserById(RealmModel realm, String keycloakId) {
-        String externalId = StorageId.externalId(keycloakId);
-        return client.findById(realm.getName(), externalId)
-                .map(p -> toUser(realm, p))
-                .orElse(null);
+        String externalUsername = StorageId.externalId(keycloakId);
+        if (externalUsername == null || externalUsername.isBlank()) return null;
+        return new PartyUserAdapter(session, realm, model, externalUsername);
     }
 
     @Override
     public UserModel getUserByUsername(RealmModel realm, String username) {
-        return client.findByUsername(realm.getName(), username)
-                .map(p -> toUser(realm, p))
-                .orElse(null);
+        if (username == null || username.isBlank()) return null;
+        return new PartyUserAdapter(session, realm, model, username);
     }
 
     @Override
@@ -55,7 +70,7 @@ class PartyUserStorageProvider implements
         return getUserByUsername(realm, email);
     }
 
-    // ---------- CredentialInputValidator ----------
+    // ── CredentialInputValidator ─────────────────────────────────────────
 
     @Override
     public boolean supportsCredentialType(String credentialType) {
@@ -70,33 +85,41 @@ class PartyUserStorageProvider implements
     @Override
     public boolean isValid(RealmModel realm, UserModel user, CredentialInput input) {
         if (!supportsCredentialType(input.getType())) return false;
-        return client.validateCredentials(realm.getName(), user.getUsername(), input.getChallengeResponse());
+        if (user == null || user.getUsername() == null) return false;
+
+        PartyClient.ValidateResult res = client.validate(
+                realm.getName(), user.getUsername(), input.getChallengeResponse());
+
+        if (!res.valid) return false;
+
+        // Attach the v2 profile to the same UserModel instance so subsequent reads
+        // during this login round-trip (getEmail, getFirstName, role mappers) see it.
+        if (res.user != null && user instanceof PartyUserAdapter pua) {
+            pua.attachProfile(res.user);
+        }
+        return true;
     }
 
-    // ---------- UserQueryProvider ----------
+    // ── UserQueryProvider ────────────────────────────────────────────────
 
     @Override
-    public int getUsersCount(RealmModel realm) { return 0; /* unknown — Party doesn't count */ }
+    public int getUsersCount(RealmModel realm) {
+        return 0;  // unknown — Party is stateless, no admin-side count available
+    }
 
     @Override
     public Stream<UserModel> searchForUserStream(RealmModel realm, String search,
                                                  Integer firstResult, Integer maxResults) {
-        int first = firstResult == null ? 0 : firstResult;
-        int max = maxResults == null ? 20 : maxResults;
-        return client.search(realm.getName(), search, first, max)
-                .map(arr -> {
-                    Stream.Builder<UserModel> b = Stream.builder();
-                    if (arr.isArray()) arr.forEach(p -> b.add(toUser(realm, p)));
-                    return b.build();
-                })
-                .orElse(Stream.empty());
+        // v2 has no admin search path (Party doesn't expose one).  Listing
+        // users in the Keycloak admin console would require admin credentials
+        // on the underlying repo (Odoo etc.) — out of scope for v0.
+        return Stream.empty();
     }
 
     @Override
     public Stream<UserModel> searchForUserStream(RealmModel realm, Map<String, String> params,
                                                  Integer firstResult, Integer maxResults) {
-        String q = params.getOrDefault(UserModel.SEARCH, "");
-        return searchForUserStream(realm, q, firstResult, maxResults);
+        return Stream.empty();
     }
 
     @Override
@@ -106,17 +129,9 @@ class PartyUserStorageProvider implements
     }
 
     @Override
-    public Stream<UserModel> searchForUserByUserAttributeStream(RealmModel realm, String attrName, String attrValue) {
+    public Stream<UserModel> searchForUserByUserAttributeStream(RealmModel realm,
+                                                                String attrName, String attrValue) {
         return Stream.empty();
-    }
-
-    // ---------- adapter ----------
-
-    private UserModel toUser(RealmModel realm, JsonNode payload) {
-        PartyUserAdapter adapter = new PartyUserAdapter(session, realm, model, payload);
-        // Keycloak requires a storage-prefixed id; override via setId-style — AbstractUserAdapter handles this
-        // by using storageModel.getId() + partyId via StorageId.keycloakId.
-        return new PartyStorageIdWrapper(adapter, model.getId(), adapter.partyId());
     }
 
     @Override

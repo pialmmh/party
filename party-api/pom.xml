@@ -31,6 +31,10 @@
             <groupId>com.telcobright.party</groupId>
             <artifactId>party-workflows</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.telcobright.party</groupId>
+            <artifactId>party-v2</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>io.quarkus</groupId>

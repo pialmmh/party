@@ -60,3 +60,23 @@ party:
     sync: party-sync-queue
     bulk: party-bulk-queue
     critical: party-critical-queue
+
+  # ── v2: stateless adapters + policy chain ────────────────────────────────
+  # The v2 design carries no Party-owned DB; each tenant resolves users through
+  # a pluggable UserRepoAdapter. /api/v1/v2/* endpoints surface this path.
+  v2:
+    default-tenant: t1
+    tenants:
+      t1:
+        user-repo-type: odoo
+        odoo:
+          base-url:        "${PARTY_V2_T1_ODOO_URL:http://127.0.0.1:7170}"
+          db:              "${PARTY_V2_T1_ODOO_DB:platform}"
+          admin-user:      "${PARTY_V2_T1_ODOO_ADMIN_USER:}"
+          admin-password:  "${PARTY_V2_T1_ODOO_ADMIN_PASSWORD:}"
+          timeout-millis:  5000
+    policies:
+      chain:
+        - name: basic-auth
+          enabled: true
+          order: 10

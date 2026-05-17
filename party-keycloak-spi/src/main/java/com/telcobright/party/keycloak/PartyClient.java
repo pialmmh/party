@@ -4,88 +4,113 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.net.URI;
-import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Optional;
 
 /**
- * Thin HTTP client that talks to Party's /internal/kc/* endpoints.
- * Shared-secret auth via X-KC-Integration-Secret header.
+ * Thin v2 client.  Calls one endpoint:
+ *   POST {baseUrl}/api/v1/v2/auth/validate
+ *
+ * Body:  { "tenantId": "...", "login": "...", "password": "..." }
+ * Reply: { "valid": bool, "reason": string|null, "policyName": string|null, "user": { ... }|null }
+ *
+ * Party (v2) is the policy decision point: the chain (basic-auth → ...) decides allow/deny
+ * and resolves the user via the tenant's configured UserRepoAdapter.  The SPI here is the
+ * Keycloak-side bridge — it does not know about Odoo, LDAP, or anything else.
  */
 class PartyClient {
 
     private final HttpClient http = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(5))
+            .connectTimeout(Duration.ofSeconds(3))
             .build();
 
     private final ObjectMapper json = new ObjectMapper();
 
     private final String baseUrl;
-    private final String secret;
+    private final String tenantOverride;
 
-    PartyClient(String baseUrl, String secret) {
-        this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
-        this.secret = secret;
+    PartyClient(String baseUrl, String tenantOverride) {
+        if (baseUrl == null || baseUrl.isBlank()) {
+            throw new IllegalArgumentException("partyBaseUrl is required");
+        }
+        String trimmed = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+        this.baseUrl = trimmed;
+        this.tenantOverride = (tenantOverride == null || tenantOverride.isBlank()) ? null : tenantOverride;
     }
 
-    Optional<JsonNode> findByUsername(String realm, String username) {
-        String url = baseUrl + "/api/v1/internal/kc/users/by-username?realm=" +
-                enc(realm) + "&username=" + enc(username);
-        return get(url);
-    }
-
-    Optional<JsonNode> findById(String realm, String id) {
-        String url = baseUrl + "/api/v1/internal/kc/users/by-id?realm=" + enc(realm) + "&id=" + enc(id);
-        return get(url);
-    }
-
-    Optional<JsonNode> search(String realm, String query, int first, int max) {
-        String url = baseUrl + "/api/v1/internal/kc/users/search?realm=" + enc(realm)
-                + "&q=" + enc(query == null ? "" : query)
-                + "&first=" + first + "&max=" + max;
-        return get(url);
-    }
-
-    boolean validateCredentials(String realm, String username, String password) {
+    /**
+     * Call /v2/auth/validate.  Never throws — failures return a deny ValidateResult so the
+     * SPI can fall back gracefully without surfacing 500s to Keycloak.
+     */
+    ValidateResult validate(String realmName, String login, String password) {
+        String tenantId = resolveTenant(realmName);
         try {
-            String body = json.writeValueAsString(Map.of(
-                    "realm", realm, "username", username, "password", password));
-            HttpRequest req = HttpRequest.newBuilder(URI.create(baseUrl + "/api/v1/internal/kc/users/validate-credentials"))
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("tenantId", tenantId);
+            body.put("login", login);
+            body.put("password", password);
+
+            HttpRequest req = HttpRequest.newBuilder(URI.create(baseUrl + "/api/v1/v2/auth/validate"))
                     .header("Content-Type", "application/json")
-                    .header("X-KC-Integration-Secret", secret)
+                    .header("Accept", "application/json")
                     .timeout(Duration.ofSeconds(10))
-                    .POST(HttpRequest.BodyPublishers.ofString(body))
+                    .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body)))
                     .build();
+
             HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
-            if (resp.statusCode() != 200) return false;
+            if (resp.statusCode() != 200) {
+                return ValidateResult.deny("http " + resp.statusCode(), null);
+            }
             JsonNode n = json.readTree(resp.body());
-            return n.path("valid").asBoolean(false);
+            boolean valid = n.path("valid").asBoolean(false);
+            String reason = n.has("reason") && !n.get("reason").isNull()
+                    ? n.get("reason").asText() : null;
+            JsonNode user = n.has("user") && !n.get("user").isNull()
+                    ? n.get("user") : null;
+            return new ValidateResult(valid, reason, user, tenantId);
         } catch (Exception e) {
-            return false;
+            return ValidateResult.deny(e.getClass().getSimpleName() + ": " + e.getMessage(), tenantId);
         }
     }
 
-    private Optional<JsonNode> get(String url) {
-        try {
-            HttpRequest req = HttpRequest.newBuilder(URI.create(url))
-                    .header("X-KC-Integration-Secret", secret)
-                    .timeout(Duration.ofSeconds(10))
-                    .GET().build();
-            HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
-            if (resp.statusCode() == 404) return Optional.empty();
-            if (resp.statusCode() / 100 != 2) return Optional.empty();
-            return Optional.of(json.readTree(resp.body()));
-        } catch (Exception e) {
-            return Optional.empty();
+    /** Resolve which tenantId to send. Config override beats realm-name derivation. */
+    private String resolveTenant(String realmName) {
+        if (tenantOverride != null) return tenantOverride;
+        if (realmName == null) return null;
+        // Convention: realm "tenant-<op>-<tn>" maps to tenant "<tn>".  Otherwise use as-is.
+        if (realmName.startsWith("tenant-")) {
+            int last = realmName.lastIndexOf('-');
+            if (last > "tenant-".length() - 1) {
+                return realmName.substring(last + 1);
+            }
         }
+        return realmName;
     }
 
-    private static String enc(String s) {
-        return URLEncoder.encode(s == null ? "" : s, StandardCharsets.UTF_8);
+    String baseUrl() { return baseUrl; }
+    String tenantOverride() { return tenantOverride; }
+
+    // ── result type ──────────────────────────────────────────────────────
+
+    static final class ValidateResult {
+        final boolean valid;
+        final String reason;
+        final JsonNode user;     // null when !valid or user wasn't returned
+        final String tenantId;
+
+        ValidateResult(boolean valid, String reason, JsonNode user, String tenantId) {
+            this.valid = valid;
+            this.reason = reason;
+            this.user = user;
+            this.tenantId = tenantId;
+        }
+
+        static ValidateResult deny(String reason, String tenantId) {
+            return new ValidateResult(false, reason, null, tenantId);
+        }
     }
 }

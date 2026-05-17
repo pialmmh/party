@@ -145,9 +145,18 @@ public class PartyProfileConfigSource implements ConfigSource {
             if (v instanceof Map) {
                 flatten(key, (Map<String, Object>) v, out);
             } else if (v instanceof List<?> list) {
-                // Join scalar lists with commas; keep complex lists as toString (rare in our configs).
-                boolean scalar = list.stream().allMatch(x -> x == null || x instanceof String || x instanceof Number || x instanceof Boolean);
-                if (scalar) {
+                // Three cases for lists:
+                //   1) all elements scalar → comma-joined (SmallRye reads as List<String/Number/Boolean>)
+                //   2) all elements map    → indexed keys (SmallRye reads as List<NestedInterface>)
+                //   3) mixed / fallback    → toString
+                if (list.isEmpty()) {
+                    out.put(key, "");
+                    continue;
+                }
+                boolean allScalar = list.stream().allMatch(x ->
+                        x == null || x instanceof String || x instanceof Number || x instanceof Boolean);
+                boolean allMap = list.stream().allMatch(x -> x instanceof Map);
+                if (allScalar) {
                     StringBuilder sb = new StringBuilder();
                     for (int i = 0; i < list.size(); i++) {
                         if (i > 0) sb.append(',');
@@ -155,6 +164,10 @@ public class PartyProfileConfigSource implements ConfigSource {
                         sb.append(x == null ? "" : x.toString());
                     }
                     out.put(key, sb.toString());
+                } else if (allMap) {
+                    for (int i = 0; i < list.size(); i++) {
+                        flatten(key + "[" + i + "]", (Map<String, Object>) list.get(i), out);
+                    }
                 } else {
                     out.put(key, list.toString());
                 }

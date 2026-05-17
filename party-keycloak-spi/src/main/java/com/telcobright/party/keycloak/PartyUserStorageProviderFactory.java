@@ -15,30 +15,33 @@ public class PartyUserStorageProviderFactory
 
     public static final String PROVIDER_ID = "party-user-storage";
 
-    public static final String CONFIG_URL = "partyBaseUrl";
-    public static final String CONFIG_SECRET = "partyIntegrationSecret";
+    public static final String CONFIG_URL              = "partyBaseUrl";
+    public static final String CONFIG_TENANT_OVERRIDE  = "partyTenantOverride";
 
     private static final List<ProviderConfigProperty> CONFIG = ProviderConfigurationBuilder.create()
             .property()
                 .name(CONFIG_URL)
                 .label("Party Service base URL")
-                .helpText("Base URL of the Party service (e.g. http://party:18081)")
+                .helpText("Base URL of the Party service (e.g. http://party:18081). "
+                        + "The SPI calls {baseUrl}/api/v1/v2/auth/validate.")
                 .type(ProviderConfigProperty.STRING_TYPE)
-                .defaultValue("http://party:18081")
+                .defaultValue("http://127.0.0.1:18081")
                 .add()
             .property()
-                .name(CONFIG_SECRET)
-                .label("Integration secret")
-                .helpText("Shared secret sent in X-KC-Integration-Secret header")
-                .type(ProviderConfigProperty.PASSWORD)
+                .name(CONFIG_TENANT_OVERRIDE)
+                .label("Tenant ID override (optional)")
+                .helpText("If set, every request sent to Party uses this tenantId. "
+                        + "Otherwise the realm name is used as the tenantId, with the "
+                        + "convention that realms named 'tenant-<op>-<tn>' map to '<tn>'.")
+                .type(ProviderConfigProperty.STRING_TYPE)
                 .add()
             .build();
 
     @Override
     public PartyUserStorageProvider create(KeycloakSession session, ComponentModel model) {
-        String url = model.get(CONFIG_URL);
-        String secret = model.get(CONFIG_SECRET);
-        PartyClient client = new PartyClient(url, secret);
+        String url            = model.get(CONFIG_URL);
+        String tenantOverride = model.get(CONFIG_TENANT_OVERRIDE);
+        PartyClient client = new PartyClient(url, tenantOverride);
         return new PartyUserStorageProvider(session, model, client);
     }
 
@@ -47,8 +50,10 @@ public class PartyUserStorageProviderFactory
 
     @Override
     public String getHelpText() {
-        return "Federates users from the Telcobright Party service. " +
-               "Realm name must be 'party-operators' or 'tenant-<opShort>-<tnShort>'.";
+        return "Federates users from the Telcobright Party service via /v2/auth/validate. "
+                + "Party (stateless) runs a configurable policy chain per tenant, the first "
+                + "policy of which (basic-auth) delegates password verification to the "
+                + "tenant's UserRepoAdapter (Odoo, LDAP, Routesphere, custom).";
     }
 
     @Override
@@ -59,9 +64,6 @@ public class PartyUserStorageProviderFactory
             throws ComponentValidationException {
         if (config.get(CONFIG_URL) == null || config.get(CONFIG_URL).isBlank()) {
             throw new ComponentValidationException("partyBaseUrl is required");
-        }
-        if (config.get(CONFIG_SECRET) == null || config.get(CONFIG_SECRET).isBlank()) {
-            throw new ComponentValidationException("partyIntegrationSecret is required");
         }
     }
 }
