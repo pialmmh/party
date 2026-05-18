@@ -1,9 +1,9 @@
 # ============================================================================
 # Party — operator=btcl / profile=dev
 # ============================================================================
-# Stateless v2: no Party-owned database. Every login flows through a per-tenant
-# UserRepoAdapter (odoo / routesphere / ldap / custom) and a configurable
-# policy chain (basic-auth + later cedar).
+# Stateless v2: no Party-owned database. Each tenant binds to a UserRepoProvider
+# (odoo / routesphere / ldap / custom) for ancillary endpoints; auth runs through
+# a per-endpoint policy chain (Cisco-ACL semantics).
 # ============================================================================
 
 quarkus:
@@ -44,8 +44,17 @@ party:
             - res.users
             - res.groups
             - res.partner
-    policies:
-      chain:
-        - name: basic-auth
-          enabled: true
-          order: 10
+    # ── per-endpoint policy chains (Cisco-ACL semantics) ─────────────────
+    # Policies evaluate in order. First policy whose execute() returns
+    # matched=true wins; its allow/deny verdict is returned and the rest of
+    # the chain is skipped. If nothing matches, ApiChain returns an implicit
+    # deny (denialCode 9001). Each AuthPolicy is pure Java code combining
+    # rules with AND/OR. Generic policies live in com.telcobright.party.v2.policy.common;
+    # backend-specific ones (odooLogin, future ldapLogin) live in com.telcobright.party.v2.providers.<backend>.
+    api:
+      basicAuth:
+        policies:
+          - odooLogin
+          - nocReadOnly
+          - timeBased
+          - ipBased

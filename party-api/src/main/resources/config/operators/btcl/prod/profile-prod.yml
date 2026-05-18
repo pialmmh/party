@@ -1,9 +1,9 @@
 # ============================================================================
 # Party — operator=btcl / profile=prod
 # ============================================================================
-# Stateless v2: no Party-owned database. Each tenant binds to a UserRepoAdapter
-# (odoo / routesphere / ldap / custom) at startup. The policy chain runs on
-# every request.
+# Stateless v2: no Party-owned database. Each tenant binds to a UserRepoProvider
+# (odoo / routesphere / ldap / custom) for ancillary endpoints; auth runs through
+# a per-endpoint policy chain (Cisco-ACL semantics).
 #
 # Secrets (Odoo admin password, etc.) NEVER live in this YAML. They come from
 # the remote env file /etc/party/party.env on the production host (written by
@@ -50,8 +50,15 @@ party:
             - res.users
             - res.groups
             - res.partner
-    policies:
-      chain:
-        - name: basic-auth
-          enabled: true
-          order: 10
+    # ── per-endpoint policy chains (Cisco-ACL semantics) ─────────────────
+    # First policy whose execute() returns matched=true wins; otherwise the
+    # chain returns an implicit deny (denialCode 9001). Generic policies live
+    # in com.telcobright.party.v2.policy.common; backend-specific ones
+    # (odooLogin, future ldapLogin) live in com.telcobright.party.v2.providers.<backend>.
+    api:
+      basicAuth:
+        policies:
+          - odooLogin
+          - nocReadOnly
+          - timeBased
+          - ipBased

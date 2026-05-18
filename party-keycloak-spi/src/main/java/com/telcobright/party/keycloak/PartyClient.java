@@ -18,8 +18,8 @@ import java.util.Map;
  * Body:  { "tenantId": "...", "login": "...", "password": "..." }
  * Reply: { "valid": bool, "reason": string|null, "policyName": string|null, "user": { ... }|null }
  *
- * Party (v2) is the policy decision point: the chain (basic-auth → ...) decides allow/deny
- * and resolves the user via the tenant's configured UserRepoAdapter.  The SPI here is the
+ * Party (v2) is the policy decision point: the chain (odooLogin → nocReadOnly → ...) decides
+ * allow/deny under Cisco-ACL semantics (first matching policy wins).  The SPI here is the
  * Keycloak-side bridge — it does not know about Odoo, LDAP, or anything else.
  */
 class PartyClient {

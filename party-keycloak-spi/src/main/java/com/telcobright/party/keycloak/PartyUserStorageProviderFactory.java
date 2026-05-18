@@ -51,9 +51,9 @@ public class PartyUserStorageProviderFactory
     @Override
     public String getHelpText() {
         return "Federates users from the Telcobright Party service via /v2/auth/validate. "
-                + "Party (stateless) runs a configurable policy chain per tenant, the first "
-                + "policy of which (basic-auth) delegates password verification to the "
-                + "tenant's UserRepoAdapter (Odoo, LDAP, Routesphere, custom).";
+                + "Party (stateless) runs a per-endpoint policy chain with Cisco-ACL semantics; "
+                + "each backend (Odoo, LDAP, Routesphere, custom) is implemented as its own "
+                + "self-contained login policy.";
     }
 
     @Override

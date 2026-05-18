@@ -1,6 +1,6 @@
 package com.telcobright.party.v2.config;
 
-import com.telcobright.party.v2.adapter.UserRepoType;
+import com.telcobright.party.v2.providers.UserRepoType;
 import io.smallrye.config.ConfigMapping;
 import io.smallrye.config.WithDefault;
 
@@ -30,7 +30,13 @@ public interface PartyV2Config {
      */
     Map<String, TenantConfig> tenants();
 
-    Policies policies();
+    /**
+     * Per-endpoint policy chains. The map key is the logical endpoint name
+     * (e.g. {@code basicLogin}); the value lists policy bean names to evaluate
+     * in order, AND-style. Each name must match an {@code AuthPolicy} bean's
+     * {@code name()}.
+     */
+    Map<String, EndpointPolicies> api();
 
     // ── nested ───────────────────────────────────────────────────────────
 
@@ -81,22 +87,12 @@ public interface PartyV2Config {
         Map<String, String> properties();
     }
 
-    interface Policies {
+    interface EndpointPolicies {
         /**
-         * Shared chain definition. Order field controls run order; only enabled entries
-         * actually run. The chain is shared across tenants — what differs per tenant is
-         * which adapter the policies talk to.
+         * Ordered list of {@code AuthPolicy} bean names. Each policy is composed
+         * of one or more rules; the chain across policies and the rules within
+         * a policy are both AND — first denial returns and ends evaluation.
          */
-        List<PolicyEntry> chain();
-    }
-
-    interface PolicyEntry {
-        String name();
-
-        @WithDefault("true")
-        boolean enabled();
-
-        @WithDefault("100")
-        int order();
+        List<String> policies();
     }
 }
