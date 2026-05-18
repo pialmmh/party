@@ -37,6 +37,13 @@ party:
           admin-user:      "${PARTY_V2_T1_ODOO_ADMIN_USER:}"
           admin-password:  "${PARTY_V2_T1_ODOO_ADMIN_PASSWORD:}"
           timeout-millis:  5000
+          # Models to introspect for the policy builder vocabulary.
+          # Requires admin-user + admin-password to be set; otherwise the names
+          # show in the UI with empty field lists.
+          entities:
+            - res.users
+            - res.groups
+            - res.partner
     policies:
       chain:
         - name: basic-auth

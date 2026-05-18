@@ -3,6 +3,8 @@ package com.telcobright.party.v2.adapter.odoo;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.telcobright.party.v2.adapter.AdapterException;
 import com.telcobright.party.v2.adapter.AuthResult;
+import com.telcobright.party.v2.adapter.EntityMeta;
+import com.telcobright.party.v2.adapter.FieldMeta;
 import com.telcobright.party.v2.adapter.HealthStatus;
 import com.telcobright.party.v2.adapter.Role;
 import com.telcobright.party.v2.adapter.UserProfile;
@@ -21,10 +23,10 @@ import java.util.Optional;
  * for {@code execute_kw} read calls (Odoo allows res.users self-read with the user's own
  * credentials, so no admin secret is required for basic auth).
  *
- * For administrative read paths (findByLogin / search) an admin password is required —
- * configured via the {@code odoo.admin-user} + {@code odoo.admin-password} keys. When
- * those are absent, administrative methods degrade gracefully (empty result + a clear
- * description).
+ * For administrative read paths (findByLogin / search) AND for schema introspection
+ * (the {@link #entities()} call), an admin password is required — configured via
+ * {@code odoo.admin-user} + {@code odoo.admin-password}. When those are absent,
+ * administrative methods degrade to empty / names-only results.
  */
 public final class OdooUserRepoAdapter implements UserRepoAdapter {
 
@@ -32,13 +34,19 @@ public final class OdooUserRepoAdapter implements UserRepoAdapter {
     private final String baseUrlForDisplay;
     private final String adminUser;
     private final String adminPassword;
+    private final List<String> entityNames;
+
+    /** Lazy double-checked cache for the vocabulary. Built on first call to entities(). */
+    private volatile List<EntityMeta> entityCache;
 
     public OdooUserRepoAdapter(String baseUrl, String db, int timeoutMillis,
-                                String adminUser, String adminPassword) {
+                                String adminUser, String adminPassword,
+                                List<String> entityNames) {
         this.client = new OdooJsonRpcClient(baseUrl, db, timeoutMillis);
         this.baseUrlForDisplay = baseUrl;
         this.adminUser = adminUser;
         this.adminPassword = adminPassword == null ? "" : adminPassword;
+        this.entityNames = entityNames == null ? List.of() : List.copyOf(entityNames);
     }
 
     @Override public UserRepoType type() { return UserRepoType.ODOO; }
@@ -52,7 +60,6 @@ public final class OdooUserRepoAdapter implements UserRepoAdapter {
         try {
             uid = client.authenticate(login, password);
         } catch (AdapterException ae) {
-            // adapter / network failure — surface as deny but with a distinct reason
             return AuthResult.deny("adapter error: " + ae.getMessage());
         }
         if (uid.isEmpty()) {
@@ -62,7 +69,6 @@ public final class OdooUserRepoAdapter implements UserRepoAdapter {
             UserProfile profile = readProfile(uid.get(), password);
             return AuthResult.ok(profile);
         } catch (AdapterException ae) {
-            // password was right but profile read failed; treat as deny so caller knows
             return AuthResult.deny("profile read failed: " + ae.getMessage());
         }
     }
@@ -121,6 +127,58 @@ public final class OdooUserRepoAdapter implements UserRepoAdapter {
         return baseUrlForDisplay + " · db=" + client.db();
     }
 
+    @Override
+    public List<EntityMeta> entities() {
+        List<EntityMeta> cached = entityCache;
+        if (cached != null) return cached;
+        synchronized (this) {
+            if (entityCache == null) {
+                entityCache = introspect();
+            }
+            return entityCache;
+        }
+    }
+
+    // ── introspection ─────────────────────────────────────────────────────
+
+    private List<EntityMeta> introspect() {
+        if (entityNames.isEmpty()) return List.of();
+        int admUid = adminUidOrZero();
+        List<EntityMeta> out = new ArrayList<>();
+        for (String model : entityNames) {
+            if (model == null || model.isBlank()) continue;
+            if (admUid <= 0) {
+                // No admin creds → expose names-only so the UI can still render the entities pane.
+                out.add(new EntityMeta(model, "odoo", List.of()));
+                continue;
+            }
+            try {
+                JsonNode rows = client.executeKw(admUid, adminPassword,
+                        "ir.model.fields", "search_read",
+                        List.of(List.of(List.of("model", "=", model))),
+                        OdooJsonRpcClient.kwargs(
+                                "fields", List.of("name", "ttype", "required", "relation", "field_description")));
+                List<FieldMeta> fields = new ArrayList<>();
+                if (rows != null && rows.isArray()) {
+                    for (JsonNode r : rows) {
+                        fields.add(new FieldMeta(
+                                textOrNull(r, "name"),
+                                textOrNull(r, "ttype"),
+                                r.has("required") && r.get("required").asBoolean(),
+                                textOrNull(r, "relation"),
+                                textOrNull(r, "field_description")
+                        ));
+                    }
+                }
+                out.add(new EntityMeta(model, "odoo", fields));
+            } catch (Exception e) {
+                // Introspection failure is non-fatal — record the model name with no fields.
+                out.add(new EntityMeta(model, "odoo", List.of()));
+            }
+        }
+        return out;
+    }
+
     // ── internals ─────────────────────────────────────────────────────────
 
     private UserProfile readProfile(int uid, String password) {
@@ -145,7 +203,6 @@ public final class OdooUserRepoAdapter implements UserRepoAdapter {
     }
 
     private UserProfile toProfile(JsonNode row, int callerUid) {
-        // Admin path: group names need a follow-up read.
         List<Role> roles = readRoles(callerUid, adminPassword, row.get("groups_id"));
         return new UserProfile(
                 String.valueOf(row.get("id").asInt()),
@@ -177,7 +234,6 @@ public final class OdooUserRepoAdapter implements UserRepoAdapter {
             }
             return out;
         } catch (Exception e) {
-            // Group read can fail if the user lacks res.groups access; that's not fatal.
             return List.of();
         }
     }

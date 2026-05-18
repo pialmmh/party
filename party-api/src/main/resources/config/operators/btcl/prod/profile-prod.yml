@@ -46,6 +46,10 @@ party:
           admin-user:      "${PARTY_V2_T1_ODOO_ADMIN_USER:}"
           admin-password:  "${PARTY_V2_T1_ODOO_ADMIN_PASSWORD:}"
           timeout-millis:  5000
+          entities:
+            - res.users
+            - res.groups
+            - res.partner
     policies:
       chain:
         - name: basic-auth

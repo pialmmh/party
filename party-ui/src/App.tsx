@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard';
 import Tenants from './pages/Tenants';
 import Users from './pages/Users';
 import Adapters from './pages/Adapters';
+import Vocabulary from './pages/Vocabulary';
 import Policies from './pages/Policies';
 import Settings from './pages/Settings';
 
@@ -15,6 +16,7 @@ export default function App() {
                 <Route path="tenants" element={<Tenants />} />
                 <Route path="users" element={<Users />} />
                 <Route path="adapters" element={<Adapters />} />
+                <Route path="vocabulary" element={<Vocabulary />} />
                 <Route path="policies" element={<Policies />} />
                 <Route path="settings" element={<Settings />} />
             </Route>

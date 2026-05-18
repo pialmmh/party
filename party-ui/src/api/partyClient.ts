@@ -35,6 +35,20 @@ export interface ValidateResponse {
     user: User | null;
 }
 
+export interface FieldMeta {
+    name: string;
+    type: string;
+    required: boolean;
+    relation: string | null;
+    label: string | null;
+}
+
+export interface EntityMeta {
+    name: string;
+    source: string;
+    fields: FieldMeta[];
+}
+
 async function asJson<T>(r: Response): Promise<T> {
     const text = await r.text();
     if (!r.ok) {
@@ -58,5 +72,10 @@ export const partyApi = {
             body: JSON.stringify(req),
         });
         return asJson<ValidateResponse>(r);
+    },
+
+    async entities(tenantId: string): Promise<EntityMeta[]> {
+        const r = await fetch(`${BASE}/v2/tenants/${encodeURIComponent(tenantId)}/entities`, { method: 'GET' });
+        return asJson<EntityMeta[]>(r);
     },
 };

@@ -1,12 +1,13 @@
 import { useLocation } from 'react-router-dom';
 
 const titles: Record<string, string> = {
-    '/':         'Dashboard',
-    '/tenants':  'Tenants',
-    '/users':    'Users',
-    '/adapters': 'Adapters',
-    '/policies': 'Policies',
-    '/settings': 'Settings',
+    '/':           'Dashboard',
+    '/tenants':    'Tenants',
+    '/users':      'Users',
+    '/adapters':   'Adapters',
+    '/vocabulary': 'Vocabulary',
+    '/policies':   'Policies',
+    '/settings':   'Settings',
 };
 
 export default function TopBar() {

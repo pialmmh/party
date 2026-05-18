@@ -41,4 +41,16 @@ public interface UserRepoAdapter {
      * Surfaced in the Adapters UI page so operators can see "this tenant's odoo points at X".
      */
     String describeTarget();
+
+    /**
+     * Entity vocabulary discovered from the underlying repo. Adapters introspect their
+     * source at startup and cache the result; the policy builder UI calls this via the
+     * /v2/tenants/{tenantId}/entities endpoint to populate node handles.
+     *
+     * Default: empty list — stubs and adapters without introspection support return
+     * nothing, which the UI renders as "vocabulary not available".
+     */
+    default List<EntityMeta> entities() {
+        return List.of();
+    }
 }

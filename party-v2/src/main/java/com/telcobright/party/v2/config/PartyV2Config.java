@@ -52,6 +52,18 @@ public interface PartyV2Config {
 
         @WithDefault("5000")
         int timeoutMillis();
+
+        /**
+         * Odoo model names (e.g. "res.users", "res.partner") to introspect for
+         * field metadata at startup. The adapter calls ir.model.fields.search_read
+         * for each and caches the result for the policy builder UI.
+         *
+         * If empty, no introspection runs and the vocabulary endpoint returns nothing.
+         * Introspection requires admin-user + admin-password to be set; otherwise the
+         * adapter logs a warning and falls back to names-only entries.
+         */
+        @WithDefault("")
+        List<String> entities();
     }
 
     interface LdapAdapterConfig {

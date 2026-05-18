@@ -63,7 +63,8 @@ public class TenantRegistry {
                                 + " has user-repo-type=odoo but no party.v2.tenants." + tenantId + ".odoo config"));
                 yield new OdooUserRepoAdapter(
                         oc.baseUrl(), oc.db(), oc.timeoutMillis(),
-                        oc.adminUser().orElse(""), oc.adminPassword().orElse(""));
+                        oc.adminUser().orElse(""), oc.adminPassword().orElse(""),
+                        oc.entities());
             }
             case LDAP -> {
                 PartyV2Config.LdapAdapterConfig lc = tc.ldap().orElse(null);

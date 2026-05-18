@@ -3,12 +3,13 @@ import { NavLink } from 'react-router-dom';
 type Item = { to: string; label: string; icon: string };
 
 const items: Item[] = [
-    { to: '/',          label: 'Dashboard', icon: '◇' },
-    { to: '/tenants',   label: 'Tenants',   icon: '⌂' },
-    { to: '/users',     label: 'Users',     icon: '☺' },
-    { to: '/adapters',  label: 'Adapters',  icon: '⇄' },
-    { to: '/policies',  label: 'Policies',  icon: '⚑' },
-    { to: '/settings',  label: 'Settings',  icon: '⚙' },
+    { to: '/',           label: 'Dashboard',  icon: '◇' },
+    { to: '/tenants',    label: 'Tenants',    icon: '⌂' },
+    { to: '/users',      label: 'Users',      icon: '☺' },
+    { to: '/adapters',   label: 'Adapters',   icon: '⇄' },
+    { to: '/vocabulary', label: 'Vocabulary', icon: '▦' },
+    { to: '/policies',   label: 'Policies',   icon: '⚑' },
+    { to: '/settings',   label: 'Settings',   icon: '⚙' },
 ];
 
 export default function Sidebar() {
