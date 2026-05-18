@@ -1,21 +1,13 @@
 # ============================================================================
 # Party — operator=btcl / profile=prod
 # ============================================================================
-# Production profile for the BTCL cluster (kafka1/kafka2/kafka3 VMs on the
-# 10.10.0.0/16 WireGuard overlay).
+# Stateless v2: no Party-owned database. Each tenant binds to a UserRepoAdapter
+# (odoo / routesphere / ldap / custom) at startup. The policy chain runs on
+# every request.
 #
-# Galera:   sequential://  — MariaDB Connector/J picks the first healthy node
-#                             from the list; matches Galera's single-writer
-#                             invariant under load.
-# Temporal: dns:///        — gRPC client-side round-robin + failover across
-#                             the 3 frontend addresses.
-# Keycloak: admin REST is OFF by default. Flip PARTY_KC_ADMIN_ENABLED=true
-#           (via the env file on the remote host) once a Keycloak instance is
-#           reachable over the overlay.
-# Secrets:  PARTY_DB_PASSWORD, PARTY_JWT_SECRET, PARTY_KC_INTEGRATION_SECRET
-#           are NEVER baked into this YAML. They come from the remote env file
-#           /etc/party/party.env (written by remote-setup.sh from
-#           ~/.secrets/party-btcl.env on the deploy host).
+# Secrets (Odoo admin password, etc.) NEVER live in this YAML. They come from
+# the remote env file /etc/party/party.env on the production host (written by
+# the deploy tool from ~/.secrets/party-btcl.env on the operator's host).
 # ============================================================================
 
 quarkus:
@@ -41,39 +33,21 @@ quarkus:
     export:
       prometheus:
         path: /q/metrics
-  datasource:
-    username: party
-    password: "${PARTY_DB_PASSWORD}"
-    jdbc:
-      url: "jdbc:mariadb:sequential://10.10.199.20:3306,10.10.198.20:3306,10.10.197.20:3306/party_master"
-      max-size: 30
-      min-size: 5
 
 party:
-  jwt:
-    secret: "${PARTY_JWT_SECRET}"
-    issuer: party-service
-    access-ttl-minutes: 15
-    refresh-ttl-minutes: 1440
-
-  kc-integration:
-    secret: "${PARTY_KC_INTEGRATION_SECRET}"
-
-  keycloak:
-    admin:
-      enabled: "${PARTY_KC_ADMIN_ENABLED:false}"
-      url: "${PARTY_KC_ADMIN_URL:http://10.10.199.20:7104}"
-      realm: "${PARTY_KC_ADMIN_REALM:master}"
-      client-id: "${PARTY_KC_ADMIN_CLIENT_ID:admin-cli}"
-      username: "${PARTY_KC_ADMIN_USER:admin}"
-      password: "${PARTY_KC_ADMIN_PASS:}"
-
-  temporal:
-    enabled: true
-    target: "dns:///10.10.199.20:7233,10.10.198.20:7233,10.10.197.20:7233"
-    namespace: party-prod
-
-  task-queue:
-    sync: party-sync-queue
-    bulk: party-bulk-queue
-    critical: party-critical-queue
+  v2:
+    default-tenant: t1
+    tenants:
+      t1:
+        user-repo-type: odoo
+        odoo:
+          base-url:        "${PARTY_V2_T1_ODOO_URL}"
+          db:              "${PARTY_V2_T1_ODOO_DB}"
+          admin-user:      "${PARTY_V2_T1_ODOO_ADMIN_USER:}"
+          admin-password:  "${PARTY_V2_T1_ODOO_ADMIN_PASSWORD:}"
+          timeout-millis:  5000
+    policies:
+      chain:
+        - name: basic-auth
+          enabled: true
+          order: 10

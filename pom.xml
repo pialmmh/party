@@ -10,17 +10,17 @@
     <packaging>pom</packaging>
 
     <name>Party Service (parent)</name>
-    <description>Multi-tenant identity and authorization microservice.</description>
+    <description>
+        Stateless multi-tenant identity microservice. Users live in pluggable external
+        repos (Odoo / Routesphere / LDAP / custom) via UserRepoAdapter; per-tenant
+        policy chains run on each request (basic-auth + Cedar later). Keycloak SPI
+        bridges to Keycloak.
+    </description>
 
     <modules>
-        <module>party-domain</module>
-        <module>party-master</module>
-        <module>party-tenant-projection</module>
-        <module>party-workflows</module>
         <module>party-v2</module>
         <module>party-api</module>
         <module>party-keycloak-spi</module>
-        <module>party-integration-test</module>
     </modules>
 
     <properties>
@@ -30,11 +30,6 @@
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
         <quarkus.platform.version>3.15.1</quarkus.platform.version>
-
-        <temporal.version>1.27.0</temporal.version>
-        <bcrypt.version>0.10.2</bcrypt.version>
-        <lombok.version>1.18.34</lombok.version>
-        <jjwt.version>0.12.6</jjwt.version>
 
         <compiler-plugin.version>3.13.0</compiler-plugin.version>
         <surefire-plugin.version>3.5.1</surefire-plugin.version>
@@ -51,61 +46,7 @@
                 <scope>import</scope>
             </dependency>
 
-            <dependency>
-                <groupId>io.temporal</groupId>
-                <artifactId>temporal-sdk</artifactId>
-                <version>${temporal.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>at.favre.lib</groupId>
-                <artifactId>bcrypt</artifactId>
-                <version>${bcrypt.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.projectlombok</groupId>
-                <artifactId>lombok</artifactId>
-                <version>${lombok.version}</version>
-                <scope>provided</scope>
-            </dependency>
-            <dependency>
-                <groupId>io.jsonwebtoken</groupId>
-                <artifactId>jjwt-api</artifactId>
-                <version>${jjwt.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.jsonwebtoken</groupId>
-                <artifactId>jjwt-impl</artifactId>
-                <version>${jjwt.version}</version>
-                <scope>runtime</scope>
-            </dependency>
-            <dependency>
-                <groupId>io.jsonwebtoken</groupId>
-                <artifactId>jjwt-jackson</artifactId>
-                <version>${jjwt.version}</version>
-                <scope>runtime</scope>
-            </dependency>
-
             <!-- internal modules -->
-            <dependency>
-                <groupId>com.telcobright.party</groupId>
-                <artifactId>party-domain</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.telcobright.party</groupId>
-                <artifactId>party-master</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.telcobright.party</groupId>
-                <artifactId>party-tenant-projection</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.telcobright.party</groupId>
-                <artifactId>party-workflows</artifactId>
-                <version>${project.version}</version>
-            </dependency>
             <dependency>
                 <groupId>com.telcobright.party</groupId>
                 <artifactId>party-v2</artifactId>

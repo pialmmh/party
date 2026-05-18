@@ -1,17 +1,9 @@
 # ============================================================================
 # Party — operator=btcl / profile=dev
 # ============================================================================
-# Development profile. The datasource block is deliberately absent so Quarkus
-# Dev Services provisions a throw-away MariaDB container during `mvn test`
-# and `mvn quarkus:dev`. To point dev at the LXC MariaDB (127.0.0.1:3306)
-# instead, launch with:
-#
-#     mvn quarkus:dev -Dquarkus.datasource.jdbc.url=jdbc:mariadb://127.0.0.1:3306/party_master \
-#                     -Dquarkus.datasource.username=party \
-#                     -Dquarkus.datasource.password=party
-#
-# Temporal + Keycloak admin provisioning are OFF by default. Flip them on
-# locally via the env vars referenced in `${VAR:default}` placeholders below.
+# Stateless v2: no Party-owned database. Every login flows through a per-tenant
+# UserRepoAdapter (odoo / routesphere / ldap / custom) and a configurable
+# policy chain (basic-auth + later cedar).
 # ============================================================================
 
 quarkus:
@@ -33,37 +25,7 @@ quarkus:
         path: /q/metrics
 
 party:
-  jwt:
-    secret: "${PARTY_JWT_SECRET:dev-secret-change-me-dev-secret-change-me-32bytes}"
-    issuer: party-service
-    access-ttl-minutes: 15
-    refresh-ttl-minutes: 1440
-
-  kc-integration:
-    secret: "${PARTY_KC_INTEGRATION_SECRET:dev-kc-integration-secret-change-me}"
-
-  keycloak:
-    admin:
-      enabled: false
-      url: "${PARTY_KC_ADMIN_URL:http://localhost:7104}"
-      realm: "${PARTY_KC_ADMIN_REALM:master}"
-      client-id: "${PARTY_KC_ADMIN_CLIENT_ID:admin-cli}"
-      username: "${PARTY_KC_ADMIN_USER:admin}"
-      password: "${PARTY_KC_ADMIN_PASS:admin}"
-
-  temporal:
-    enabled: false
-    target: "${PARTY_TEMPORAL_TARGET:127.0.0.1:7233}"
-    namespace: "${PARTY_TEMPORAL_NAMESPACE:default}"
-
-  task-queue:
-    sync: party-sync-queue
-    bulk: party-bulk-queue
-    critical: party-critical-queue
-
   # ── v2: stateless adapters + policy chain ────────────────────────────────
-  # The v2 design carries no Party-owned DB; each tenant resolves users through
-  # a pluggable UserRepoAdapter. /api/v1/v2/* endpoints surface this path.
   v2:
     default-tenant: t1
     tenants:

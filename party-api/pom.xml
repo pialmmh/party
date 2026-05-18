@@ -12,25 +12,12 @@
 
     <artifactId>party-api</artifactId>
     <name>Party :: API</name>
-    <description>REST endpoints, JWT security, Quarkus runtime.</description>
+    <description>
+        Quarkus runtime host. Brings in party-v2 (REST resources + CDI beans) and
+        provides PartyProfileConfigSource for operator/profile-scoped YAML config.
+    </description>
 
     <dependencies>
-        <dependency>
-            <groupId>com.telcobright.party</groupId>
-            <artifactId>party-domain</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.telcobright.party</groupId>
-            <artifactId>party-master</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.telcobright.party</groupId>
-            <artifactId>party-tenant-projection</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.telcobright.party</groupId>
-            <artifactId>party-workflows</artifactId>
-        </dependency>
         <dependency>
             <groupId>com.telcobright.party</groupId>
             <artifactId>party-v2</artifactId>
@@ -55,18 +42,6 @@
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-arc</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-hibernate-validator</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-flyway</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.flywaydb</groupId>
-            <artifactId>flyway-mysql</artifactId>
         </dependency>
         <dependency>
             <groupId>org.yaml</groupId>
