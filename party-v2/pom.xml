@@ -14,8 +14,10 @@
     <name>Party :: V2 (stateless adapters + policy chain)</name>
     <description>
         Stateless redesign of Party: pluggable UserRepoAdapter (Odoo / Routesphere / LDAP / Custom)
-        per tenant + configurable policy chain. No Party-owned DB. The legacy DB-backed modules
+        per tenant + configurable policy chain. The legacy DB-backed modules
         remain alongside for now; v2 is opt-in via the /v2/* REST surface.
+        Exception to statelessness: the secure-link registration feature owns the small
+        device_registry + transient OTP store (frozen-interfaces §2).
     </description>
 
     <dependencies>
@@ -41,6 +43,16 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <!-- device_registry persistence (secure-link registration feature) -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-agroal</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-jdbc-mysql</artifactId>
         </dependency>
 
         <!-- Test -->

@@ -10,6 +10,13 @@ quarkus:
   http:
     port: 18081
     root-path: /api/v1
+  # device_registry (secure-link registration, frozen §2). Dev-box MySQL;
+  # creds overridable via env for anything beyond the local dev cluster.
+  datasource:
+    jdbc:
+      url: "${PARTY_REG_DB_URL:jdbc:mysql://127.0.0.1:3306/party_v2?createDatabaseIfNotExist=true}"
+    username: "${PARTY_REG_DB_USER:root}"
+    password: "${PARTY_REG_DB_PASSWORD:123456}"
   log:
     level: INFO
     category:
@@ -33,7 +40,8 @@ party:
         user-repo-type: odoo
         odoo:
           base-url:        "${PARTY_V2_T1_ODOO_URL:http://127.0.0.1:7170}"
-          db:              "${PARTY_V2_T1_ODOO_DB:platform}"
+          # The real instance (orchestrix-v2/odoo-backend-19) serves only this DB (dbfilter).
+          db:              "${PARTY_V2_T1_ODOO_DB:odoo_billing_19}"
           admin-user:      "${PARTY_V2_T1_ODOO_ADMIN_USER:}"
           admin-password:  "${PARTY_V2_T1_ODOO_ADMIN_PASSWORD:}"
           timeout-millis:  5000
@@ -58,3 +66,41 @@ party:
           - nocReadOnly
           - timeBased
           - ipBased
+
+    # ── secure-link registration (frozen-interfaces §2, JWT from day one) ──
+    registration:
+      tenant: t1
+      otp:
+        # Dev mode (user directive): log the code server-side; the API
+        # response NEVER carries it. Flip off when an SMS gateway lands.
+        dev-mode: true
+        ttl-seconds: 300
+        max-attempts: 3
+      jwt:
+        # HS256 shared-key FILE — byte-identical copy lives on it_vm as
+        # ejabberd's jwt_key. Never in git (house rule).
+        secret-file: "${PARTY_REG_JWT_SECRET_FILE:/home/mustafa/.secure-link/jwt-dev.key}"
+        ttl-seconds: 900
+        issuer: party
+      xmpp:
+        # Must equal ejabberd hosts[0] and Odoo's secure_link.xmpp_vhost.
+        domain: "${PARTY_REG_XMPP_DOMAIN:localhost}"
+        host: "${PARTY_REG_XMPP_HOST:10.10.185.1}"
+        port: 5222
+      entitlement:
+        # OFF until the RTC-Manager PackageAccount endpoint is agreed.
+        enforce: false
+      ejabberd:
+        # ON once mod_http_api is enabled on it_vm (central-kill kick).
+        kick-enabled: false
+        api-url: "${PARTY_REG_EJABBERD_API:}"
+      device:
+        inactivity-expire-days: 30
+
+    # ── secure-link contacts (frozen-interfaces §6 — party owns the graph) ──
+    contacts:
+      # Dev owner identity: X-SL-Account header accepted alongside Bearer
+      # device-JWTs (flip off when all clients send §2 tokens).
+      owner-header-enabled: true
+      invites:
+        dev-mode: true
