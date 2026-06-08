@@ -1,8 +1,8 @@
 package com.telcobright.party.v2.contacts.api.api;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.telcobright.party.v2.contacts.internal.ContactMatcher;
-import com.telcobright.party.v2.contacts.internal.ContactStore.ContactRow;
+import com.telcobright.party.v2.contacts.internal.match.ContactMatcher;
+import com.telcobright.party.v2.contacts.internal.store.ContactStore.ContactRow;
 import com.telcobright.party.v2.contacts.internal.ContactsService;
 import com.telcobright.party.v2.contacts.internal.Denied;
 import com.telcobright.party.v2.contacts.internal.OwnerResolver;

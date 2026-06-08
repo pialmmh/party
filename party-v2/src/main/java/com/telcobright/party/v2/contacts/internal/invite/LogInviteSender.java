@@ -1,4 +1,5 @@
-package com.telcobright.party.v2.contacts.internal;
+package com.telcobright.party.v2.contacts.internal.invite;
+import com.telcobright.party.v2.contacts.internal.ContactsConfig;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;

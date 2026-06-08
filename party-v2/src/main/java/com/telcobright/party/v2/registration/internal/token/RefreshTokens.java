@@ -1,4 +1,4 @@
-package com.telcobright.party.v2.registration.internal;
+package com.telcobright.party.v2.registration.internal.token;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

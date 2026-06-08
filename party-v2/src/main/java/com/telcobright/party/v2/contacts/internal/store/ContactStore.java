@@ -1,4 +1,4 @@
-package com.telcobright.party.v2.contacts.internal;
+package com.telcobright.party.v2.contacts.internal.store;
 
 import io.agroal.api.AgroalDataSource;
 import jakarta.enterprise.context.ApplicationScoped;

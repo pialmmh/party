@@ -1,4 +1,4 @@
-package com.telcobright.party.v2.registration.internal;
+package com.telcobright.party.v2.registration.internal.token;
 
 /**
  * Mints the short-TTL per-device access token (the {@code xmppCredential}).

@@ -1,4 +1,5 @@
-package com.telcobright.party.v2.registration.internal;
+package com.telcobright.party.v2.registration.internal.token;
+import com.telcobright.party.v2.registration.internal.RegistrationConfig;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.telcobright.party.v2.security.JwtSharedKey;

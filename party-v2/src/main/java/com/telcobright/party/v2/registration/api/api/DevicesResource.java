@@ -2,7 +2,7 @@ package com.telcobright.party.v2.registration.api.api;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.telcobright.party.v2.registration.internal.DeviceRegistryStore.DeviceRow;
+import com.telcobright.party.v2.registration.internal.registry.DeviceRegistryStore.DeviceRow;
 import com.telcobright.party.v2.registration.internal.RegistrationService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;

@@ -1,4 +1,4 @@
-package com.telcobright.party.v2.registration.internal;
+package com.telcobright.party.v2.registration.internal.otp;
 
 /**
  * Delivers an OTP code to a phone. Dev mode logs it server-side

@@ -1,4 +1,5 @@
-package com.telcobright.party.v2.contacts.internal;
+package com.telcobright.party.v2.contacts.internal.match;
+import com.telcobright.party.v2.contacts.internal.Denied;
 
 import com.telcobright.party.v2.model.E164;
 import com.telcobright.party.v2.model.ProviderException;
