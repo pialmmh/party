@@ -3,22 +3,20 @@ package com.telcobright.party.v2.security;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.enterprise.context.ApplicationScoped;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
+import jakarta.inject.Inject;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Optional;
 
 /**
- * Verifies the per-device HS256 JWTs that registration mints (frozen §2) —
- * same shared-key file, so party can authenticate its own tokens on any
- * endpoint (contacts owner identity, future authenticated surfaces).
+ * Verifies the per-device HS256 JWTs that registration mints (frozen §2) using
+ * the shared {@link JwtSharedKey}, so party can authenticate its own tokens on
+ * any endpoint (contacts owner identity, future authenticated surfaces).
  * Module-root building block: features must not reach into each other's
  * internals for this.
  */
@@ -31,10 +29,7 @@ public class DeviceTokens {
 
     private final ObjectMapper json = new ObjectMapper();
 
-    @ConfigProperty(name = "party.v2.registration.jwt.secret-file")
-    Optional<String> secretFile;
-
-    private volatile byte[] key;
+    @Inject JwtSharedKey sharedKey;
 
     /** Empty on ANY defect: malformed, bad signature, expired, missing claims. */
     public Optional<DeviceClaims> verify(String token) {
@@ -55,19 +50,8 @@ public class DeviceTokens {
 
     private boolean signatureMatches(String signingInput, String signature) throws Exception {
         Mac mac = Mac.getInstance("HmacSHA256");
-        mac.init(new SecretKeySpec(sharedKey(), "HmacSHA256"));
+        mac.init(new SecretKeySpec(sharedKey.bytes(), "HmacSHA256"));
         byte[] expected = mac.doFinal(signingInput.getBytes(StandardCharsets.US_ASCII));
         return MessageDigest.isEqual(expected, B64.decode(signature));
-    }
-
-    private byte[] sharedKey() throws Exception {
-        byte[] k = key;
-        if (k == null) {
-            String path = secretFile.orElseThrow(() -> new IllegalStateException(
-                    "party.v2.registration.jwt.secret-file not configured — cannot verify tokens"));
-            k = Files.readString(Path.of(path)).strip().getBytes(StandardCharsets.UTF_8);
-            key = k;
-        }
-        return k;
     }
 }
