@@ -1,6 +1,7 @@
 package com.telcobright.party.v2.contacts.api.api;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.telcobright.party.v2.contacts.internal.ContactMatcher;
 import com.telcobright.party.v2.contacts.internal.ContactStore.ContactRow;
 import com.telcobright.party.v2.contacts.internal.ContactsService;
 import com.telcobright.party.v2.contacts.internal.Denied;
@@ -37,6 +38,7 @@ import java.util.List;
 public class ContactsResource {
 
     @Inject ContactsService service;
+    @Inject ContactMatcher matcher;
     @Inject OwnerResolver owner;
 
     public record SyncRequest(List<String> numbers) {}
@@ -52,12 +54,12 @@ public class ContactsResource {
 
     @POST
     @Path("/sync")
-    public ContactsService.SyncResult sync(@HeaderParam("Authorization") String auth,
-                                           @HeaderParam("X-SL-Account") String devAccount,
-                                           SyncRequest req) {
+    public ContactMatcher.SyncResult sync(@HeaderParam("Authorization") String auth,
+                                          @HeaderParam("X-SL-Account") String devAccount,
+                                          SyncRequest req) {
         owner.resolve(auth, devAccount); // authn only — sync reads no owner rows
         if (req == null) throw Denied.badRequest("missing body");
-        return service.sync(req.numbers());
+        return matcher.match(req.numbers());
     }
 
     @GET

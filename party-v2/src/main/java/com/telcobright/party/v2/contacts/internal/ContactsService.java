@@ -11,25 +11,19 @@ import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 /**
- * The contact-graph pipeline (frozen §6). Rows are one-directional
- * (owner → contact); mutuality is emergent, never enforced.
+ * The contact-graph pipeline (frozen §6) — the stateful owner→contact rows and
+ * their delta sync. Rows are one-directional; mutuality is emergent, never
+ * enforced. Read-only phonebook matching lives in {@link ContactMatcher}.
  */
 @ApplicationScoped
 public class ContactsService {
 
     private static final Logger LOG = Logger.getLogger(ContactsService.class);
 
-    public record Match(String e164, String jid, String displayName) {}
-    public record SyncResult(List<Match> matches, List<String> nonUsers) {}
     public record Delta(List<ContactRow> contacts, long nextCursor) {}
 
     @Inject ContactStore store;
@@ -46,23 +40,6 @@ public class ContactsService {
         return ContactStore.ACTIVE.equals(row.state())
                 ? E164.digits(row.contactE164()) + "@" + xmppDomain
                 : null;
-    }
-
-    /** Read-only phonebook match — who of these numbers is on the app. */
-    public SyncResult sync(List<String> numbers) {
-        Set<String> normalized = normalizeLenient(numbers);
-        Map<String, OdooFacadeClient.Facade> byE164 = facadesFor(List.copyOf(normalized));
-        List<Match> matches = new ArrayList<>();
-        List<String> nonUsers = new ArrayList<>();
-        for (String e164 : normalized) {
-            OdooFacadeClient.Facade f = byE164.get(e164);
-            if (f != null && "active".equals(f.status())) {
-                matches.add(new Match(f.e164(), f.jid(), f.displayName()));
-            } else {
-                nonUsers.add(e164);
-            }
-        }
-        return new SyncResult(matches, nonUsers);
     }
 
     /** No cursor: full snapshot (no tombstones) + fresh cursor — the rebase path. */
@@ -132,31 +109,6 @@ public class ContactsService {
     }
 
     // ── named steps ───────────────────────────────────────────────────────
-
-    private Set<String> normalizeLenient(List<String> numbers) {
-        Set<String> out = new LinkedHashSet<>();
-        for (String n : numbers == null ? List.<String>of() : numbers) {
-            try {
-                out.add(E164.normalize(n));
-            } catch (IllegalArgumentException ignored) {
-                // unparseable phonebook noise — skip, don't fail the sync
-            }
-        }
-        return out;
-    }
-
-    private Map<String, OdooFacadeClient.Facade> facadesFor(List<String> e164s) {
-        try {
-            Map<String, OdooFacadeClient.Facade> byE164 = new HashMap<>();
-            for (OdooFacadeClient.Facade f : odoo.searchByE164In(e164s)) {
-                byE164.put(f.e164(), f);
-            }
-            return byE164;
-        } catch (ProviderException e) {
-            LOG.error("facade lookup failed: " + e.getMessage());
-            throw Denied.unavailable("contact match unavailable");
-        }
-    }
 
     private String resolvePutState(String owner, String contact) {
         Optional<ContactRow> existing = store.find(owner, contact);
