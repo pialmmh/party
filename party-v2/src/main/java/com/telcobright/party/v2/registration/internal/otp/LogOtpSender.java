@@ -1,4 +1,5 @@
 package com.telcobright.party.v2.registration.internal.otp;
+import com.telcobright.party.v2.registration.api.spi.OtpSender;
 import com.telcobright.party.v2.registration.internal.RegistrationConfig;
 
 import jakarta.enterprise.context.ApplicationScoped;

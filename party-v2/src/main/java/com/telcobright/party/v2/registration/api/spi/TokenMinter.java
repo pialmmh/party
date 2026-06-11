@@ -1,9 +1,9 @@
-package com.telcobright.party.v2.registration.internal.token;
+package com.telcobright.party.v2.registration.api.spi;
 
 /**
  * Mints the short-TTL per-device access token (the {@code xmppCredential}).
  *
- * Frozen §2: party mints HS256 day one ({@link HmacTokenMinter}); Keycloak
+ * Frozen §2: party mints HS256 day one (the HS256 minter); Keycloak
  * arrives LATER as the minter only — swapping this implementation (and
  * ejabberd's {@code jwt_key} to the RS256 JWKS) is the entire migration.
  */

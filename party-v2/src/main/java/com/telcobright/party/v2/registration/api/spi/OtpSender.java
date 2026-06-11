@@ -1,8 +1,8 @@
-package com.telcobright.party.v2.registration.internal.otp;
+package com.telcobright.party.v2.registration.api.spi;
 
 /**
  * Delivers an OTP code to a phone. Dev mode logs it server-side
- * ({@link LogOtpSender}); production plugs an SMS gateway here.
+ * (dev mode: the logging sender); production plugs an SMS gateway here.
  */
 public interface OtpSender {
 
