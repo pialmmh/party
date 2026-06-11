@@ -6,7 +6,7 @@ import com.telcobright.party.v2.contacts.internal.store.ContactStore.ContactRow;
 import com.telcobright.party.v2.contacts.api.spi.InviteSender;
 import com.telcobright.party.v2.model.E164;
 import com.telcobright.party.v2.model.ProviderException;
-import com.telcobright.party.v2.providers.odoo.OdooFacadeClient;
+import com.telcobright.party.v2.api.spi.FacadeDirectory;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
@@ -29,9 +29,8 @@ public class ContactsService {
     public record Delta(List<ContactRow> contacts, long nextCursor) {}
 
     @Inject ContactStore store;
-    @Inject OdooFacadeClient odoo;
+    @Inject FacadeDirectory facades;
     @Inject InviteSender inviteSender;
-    @Inject ContactsConfig cfg;
     @Inject Event<ContactsChanged> changed;
 
     @ConfigProperty(name = "party.v2.registration.xmpp.domain", defaultValue = "localhost")
@@ -122,7 +121,7 @@ public class ContactsService {
 
     private String stateByFacadeExistence(String contact) {
         try {
-            return odoo.findByE164(contact).isPresent() ? ContactStore.ACTIVE : ContactStore.INVITED;
+            return facades.findByE164(contact).isPresent() ? ContactStore.ACTIVE : ContactStore.INVITED;
         } catch (ProviderException e) {
             LOG.error("facade lookup failed: " + e.getMessage());
             throw Denied.unavailable("contact resolution unavailable");

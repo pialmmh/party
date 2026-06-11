@@ -1,4 +1,5 @@
 package com.telcobright.party.v2.registration.internal.entitlement;
+import com.telcobright.party.v2.registration.api.spi.EntitlementCheck;
 import com.telcobright.party.v2.registration.internal.RegistrationConfig;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -25,7 +26,7 @@ import java.time.Duration;
  * an enforced gate never lets an unverified device through.
  */
 @ApplicationScoped
-public class EntitlementClient {
+public class EntitlementClient implements EntitlementCheck {
 
     private static final Logger LOG = Logger.getLogger(EntitlementClient.class);
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -35,6 +36,7 @@ public class EntitlementClient {
 
     @Inject RegistrationConfig cfg;
 
+    @Override
     public boolean hasActiveImSubscription(long partnerId, String e164) {
         String url = entitlementUrl(partnerId);
         try {

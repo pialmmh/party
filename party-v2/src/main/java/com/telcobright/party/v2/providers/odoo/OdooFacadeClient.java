@@ -1,6 +1,7 @@
 package com.telcobright.party.v2.providers.odoo;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.telcobright.party.v2.api.spi.FacadeDirectory;
 import com.telcobright.party.v2.config.PartyV2Config;
 import com.telcobright.party.v2.model.ProviderException;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -13,17 +14,13 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Gateway to the secure_link.facade model in Odoo (the addon stream-b authored
- * in odoo-backend-19) over the existing JSON-RPC client. Shared building block
- * at the module root: registration provisions through it, contacts resolves
- * who-is-on-the-app through it. Runs as the tenant's Odoo admin user — party
- * is a trusted backend.
+ * The Odoo impl of the shared {@link FacadeDirectory} port — gateway to the
+ * secure_link.facade model (the addon stream-b authored in odoo-backend-19)
+ * over the existing JSON-RPC client. Runs as the tenant's Odoo admin user —
+ * party is a trusted backend.
  */
 @ApplicationScoped
-public class OdooFacadeClient {
-
-    public record Facade(long facadeId, long partnerId, String e164, String jid,
-                         String status, String displayName) {}
+public class OdooFacadeClient implements FacadeDirectory {
 
     private static final List<String> SUMMARY_FIELDS = List.of("id", "e164", "jid", "status", "partner_id");
 
@@ -37,6 +34,7 @@ public class OdooFacadeClient {
     private volatile String adminPassword;
 
     /** Find-or-create partner + facade for a verified phone (idempotent in Odoo). */
+    @Override
     public Facade provision(String e164, String displayName) {
         // Odoo treats false as Python None; List.of rejects nulls.
         JsonNode r = executeKw("provision_for_e164",
@@ -54,12 +52,14 @@ public class OdooFacadeClient {
     }
 
     /** Read-only lookup — does this phone have a facade (i.e. is it on the app)? */
+    @Override
     public Optional<Facade> findByE164(String e164) {
         List<Facade> rows = searchByE164In(List.of(e164));
         return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(0));
     }
 
     /** Batch read for contact sync: which of these numbers have facades. */
+    @Override
     public List<Facade> searchByE164In(List<String> e164s) {
         if (e164s.isEmpty()) return List.of();
         JsonNode rows = executeKw("search_read",

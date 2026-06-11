@@ -2,10 +2,10 @@ package com.telcobright.party.v2.registration.internal;
 
 import com.telcobright.party.v2.model.E164;
 import com.telcobright.party.v2.model.ProviderException;
-import com.telcobright.party.v2.providers.odoo.OdooFacadeClient;
+import com.telcobright.party.v2.api.spi.FacadeDirectory;
 import com.telcobright.party.v2.registration.api.emit.DeviceRevoked;
 import com.telcobright.party.v2.registration.api.emit.SubscriberProvisioned;
-import com.telcobright.party.v2.registration.internal.ejabberd.EjabberdAdminClient;
+import com.telcobright.party.v2.registration.api.spi.SessionKiller;
 import com.telcobright.party.v2.registration.internal.entitlement.EntitlementGate;
 import com.telcobright.party.v2.registration.internal.otp.OtpChallengeStore;
 import com.telcobright.party.v2.registration.api.spi.OtpSender;
@@ -42,11 +42,11 @@ public class RegistrationService {
     @Inject RegistrationConfig cfg;
     @Inject OtpChallengeStore otpStore;
     @Inject OtpSender otpSender;
-    @Inject OdooFacadeClient odoo;
+    @Inject FacadeDirectory facades;
     @Inject EntitlementGate entitlement;
     @Inject DeviceRegistryStore devices;
     @Inject TokenMinter minter;
-    @Inject EjabberdAdminClient ejabberd;
+    @Inject SessionKiller sessions;
     @Inject RegistrationEvents events;
 
     public String startOtp(String phone) {
@@ -59,7 +59,7 @@ public class RegistrationService {
     public VerifiedDevice verifyOtp(String otpToken, String code, String deviceId) {
         requireResourceSafe(deviceId);
         String e164 = consumeChallenge(otpToken, code);
-        OdooFacadeClient.Facade facade = provisionActiveFacade(e164);
+        FacadeDirectory.Facade facade = provisionActiveFacade(e164);
         requireEntitlement(facade.partnerId(), e164);
         String refreshToken = activateDevice(facade, deviceId);
         String jwt = minter.mint(facade.jid(), deviceId);
@@ -82,7 +82,7 @@ public class RegistrationService {
         DeviceRow row = devices.findByDeviceId(deviceId)
                 .orElseThrow(() -> RegistrationDenied.notFound("unknown device"));
         devices.setStatus(deviceId, DeviceRegistryStore.REVOKED);
-        ejabberd.kickSession(E164.digits(row.e164()), cfg.xmpp().domain(), deviceId);
+        sessions.kickSession(E164.digits(row.e164()), cfg.xmpp().domain(), deviceId);
         events.emit(new DeviceRevoked(deviceId, row.e164()));
     }
 
@@ -121,10 +121,10 @@ public class RegistrationService {
                 .orElseThrow(() -> RegistrationDenied.unauthorized("invalid or expired code"));
     }
 
-    private OdooFacadeClient.Facade provisionActiveFacade(String e164) {
-        OdooFacadeClient.Facade facade;
+    private FacadeDirectory.Facade provisionActiveFacade(String e164) {
+        FacadeDirectory.Facade facade;
         try {
-            facade = odoo.provision(e164, null);
+            facade = facades.provision(e164, null);
         } catch (ProviderException e) {
             LOG.error("odoo facade provisioning failed: " + e.getMessage());
             throw RegistrationDenied.unavailable("account provisioning unavailable");
@@ -141,7 +141,7 @@ public class RegistrationService {
         }
     }
 
-    private String activateDevice(OdooFacadeClient.Facade facade, String deviceId) {
+    private String activateDevice(FacadeDirectory.Facade facade, String deviceId) {
         String refreshToken = RefreshTokens.newToken();
         devices.upsertActive(deviceId, facade.partnerId(), facade.e164(), RefreshTokens.hash(refreshToken));
         return refreshToken;

@@ -1,4 +1,5 @@
 package com.telcobright.party.v2.registration.internal.entitlement;
+import com.telcobright.party.v2.registration.api.spi.EntitlementCheck;
 import com.telcobright.party.v2.registration.internal.RegistrationConfig;
 
 import jakarta.enterprise.context.ApplicationScoped;
@@ -10,7 +11,7 @@ import jakarta.inject.Inject;
  * point, same pattern as the radius/PBX/SMS gateways.
  *
  * {@code entitlement.enforce=false} keeps the gate open (legacy default);
- * when enforced it delegates to {@link EntitlementClient}, which queries the
+ * when enforced it delegates to the {@link EntitlementCheck} port, whose production impl queries the
  * RTC-Manager entitlement endpoint (served today by portal-api over the
  * rtc_mock mirror).
  */
@@ -18,12 +19,12 @@ import jakarta.inject.Inject;
 public class EntitlementGate {
 
     @Inject RegistrationConfig cfg;
-    @Inject EntitlementClient client;
+    @Inject EntitlementCheck check;
 
     public boolean hasActiveImSubscription(long partnerId, String e164) {
         if (!cfg.entitlement().enforce()) {
             return true;
         }
-        return client.hasActiveImSubscription(partnerId, e164);
+        return check.hasActiveImSubscription(partnerId, e164);
     }
 }

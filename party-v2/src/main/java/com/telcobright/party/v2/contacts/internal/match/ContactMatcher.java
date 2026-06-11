@@ -3,7 +3,7 @@ import com.telcobright.party.v2.contacts.internal.Denied;
 
 import com.telcobright.party.v2.model.E164;
 import com.telcobright.party.v2.model.ProviderException;
-import com.telcobright.party.v2.providers.odoo.OdooFacadeClient;
+import com.telcobright.party.v2.api.spi.FacadeDirectory;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
@@ -28,16 +28,16 @@ public class ContactMatcher {
     public record Match(String e164, String jid, String displayName) {}
     public record SyncResult(List<Match> matches, List<String> nonUsers) {}
 
-    @Inject OdooFacadeClient odoo;
+    @Inject FacadeDirectory facades;
 
     /** Match a raw phonebook against the facade; unparseable numbers are skipped, not failed. */
     public SyncResult match(List<String> numbers) {
         Set<String> normalized = normalizeLenient(numbers);
-        Map<String, OdooFacadeClient.Facade> byE164 = facadesFor(List.copyOf(normalized));
+        Map<String, FacadeDirectory.Facade> byE164 = facadesFor(List.copyOf(normalized));
         List<Match> matches = new ArrayList<>();
         List<String> nonUsers = new ArrayList<>();
         for (String e164 : normalized) {
-            OdooFacadeClient.Facade f = byE164.get(e164);
+            FacadeDirectory.Facade f = byE164.get(e164);
             if (f != null && "active".equals(f.status())) {
                 matches.add(new Match(f.e164(), f.jid(), f.displayName()));
             } else {
@@ -61,10 +61,10 @@ public class ContactMatcher {
         return out;
     }
 
-    private Map<String, OdooFacadeClient.Facade> facadesFor(List<String> e164s) {
+    private Map<String, FacadeDirectory.Facade> facadesFor(List<String> e164s) {
         try {
-            Map<String, OdooFacadeClient.Facade> byE164 = new HashMap<>();
-            for (OdooFacadeClient.Facade f : odoo.searchByE164In(e164s)) {
+            Map<String, FacadeDirectory.Facade> byE164 = new HashMap<>();
+            for (FacadeDirectory.Facade f : facades.searchByE164In(e164s)) {
                 byE164.put(f.e164(), f);
             }
             return byE164;

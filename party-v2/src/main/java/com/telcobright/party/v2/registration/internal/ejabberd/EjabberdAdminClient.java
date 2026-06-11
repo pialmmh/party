@@ -1,4 +1,5 @@
 package com.telcobright.party.v2.registration.internal.ejabberd;
+import com.telcobright.party.v2.registration.api.spi.SessionKiller;
 import com.telcobright.party.v2.registration.internal.RegistrationConfig;
 
 import jakarta.enterprise.context.ApplicationScoped;
@@ -22,7 +23,7 @@ import java.time.Duration;
  * box (the ejabberd-JWT config task).
  */
 @ApplicationScoped
-public class EjabberdAdminClient {
+public class EjabberdAdminClient implements SessionKiller {
 
     private static final Logger LOG = Logger.getLogger(EjabberdAdminClient.class);
 
@@ -32,6 +33,7 @@ public class EjabberdAdminClient {
     @Inject RegistrationConfig cfg;
 
     /** Best-effort: revocation must not fail because the kick did. */
+    @Override
     public void kickSession(String user, String host, String resource) {
         if (!cfg.ejabberd().kickEnabled()) {
             LOG.debugf("ejabberd kick disabled — skipping kick of %s@%s/%s", user, host, resource);
