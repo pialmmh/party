@@ -1,8 +1,8 @@
 package com.telcobright.party.v2.contacts.internal;
 
 import com.telcobright.party.v2.contacts.api.emit.ContactsChanged;
-import com.telcobright.party.v2.contacts.internal.store.ContactStore;
-import com.telcobright.party.v2.contacts.internal.store.ContactStore.ContactRow;
+import com.telcobright.party.v2.contacts.api.spi.ContactStore;
+import com.telcobright.party.v2.contacts.api.spi.ContactStore.ContactRow;
 import com.telcobright.party.v2.testkit.Beans;
 import com.telcobright.party.v2.testkit.FakeFacadeDirectory;
 import jakarta.enterprise.event.Event;
@@ -31,8 +31,8 @@ class ContactsServiceTest {
 
     static final String OWNER = "+8801711000099";
 
-    /** In-memory contact store with the same per-owner monotonic-seq contract. */
-    static class FakeContactStore extends ContactStore {
+    /** In-memory impl of the ContactStore port — same per-owner monotonic-seq contract. */
+    static class FakeContactStore implements ContactStore {
         final Map<String, Map<String, ContactRow>> byOwner = new LinkedHashMap<>();
         final Map<String, Long> high = new LinkedHashMap<>();
 

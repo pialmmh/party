@@ -1,5 +1,7 @@
 package com.telcobright.party.v2.contacts.internal.store;
 
+import com.telcobright.party.v2.contacts.api.spi.ContactStore;
+
 import io.agroal.api.AgroalDataSource;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -14,21 +16,12 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * The owner→contact rows (frozen §6): one-directional, tombstoned, per-owner
- * strictly-monotonic {@code seq}. Every mutation allocates the owner's next
- * seq and stamps the row IN ONE TRANSACTION — the (owner_e164, seq) index
- * serializes concurrent allocators for the same owner.
+ * The MySQL impl of the {@link ContactStore} port (frozen §6). The next seq is
+ * allocated and stamped IN ONE TRANSACTION — SELECT … FOR UPDATE on the
+ * (owner_e164, seq) index serializes concurrent allocators for the same owner.
  */
 @ApplicationScoped
-public class ContactStore {
-
-    public record ContactRow(String ownerE164, String contactE164, String petname,
-                             String state, long seq) {}
-
-    public static final String ACTIVE = "ACTIVE";
-    public static final String INVITED = "INVITED";
-    public static final String BLOCKED = "BLOCKED";
-    public static final String DELETED = "DELETED";
+public class JdbcContactStore implements ContactStore {
 
     private static final String DDL = """
             CREATE TABLE IF NOT EXISTS contact (
@@ -47,13 +40,7 @@ public class ContactStore {
 
     private volatile boolean schemaReady;
 
-    /**
-     * Upsert the row with the owner's next seq stamped in the same
-     * transaction. {@code state} is always concrete (callers resolve
-     * keep-state beforehand); a null petname preserves the existing one when
-     * {@code keepExistingPetnameIfNull} is set (block/delete must not clobber
-     * it). @return the new seq.
-     */
+    @Override
     public long upsertWithNextSeq(String owner, String contact, String petname,
                                   String state, boolean keepExistingPetnameIfNull) {
         ensureSchema();
@@ -91,13 +78,14 @@ public class ContactStore {
         }
     }
 
+    @Override
     public Optional<ContactRow> find(String owner, String contact) {
         ensureSchema();
         return queryOne("SELECT * FROM contact WHERE owner_e164 = ? AND contact_e164 = ?",
                 st -> { st.setString(1, owner); st.setString(2, contact); });
     }
 
-    /** Delta: ALL states including tombstones, strictly after {@code since}, seq order. */
+    @Override
     public List<ContactRow> listSince(String owner, long since) {
         ensureSchema();
         return queryMany(
@@ -105,7 +93,7 @@ public class ContactStore {
                 st -> { st.setString(1, owner); st.setLong(2, since); });
     }
 
-    /** Snapshot: current rows only (no tombstones). */
+    @Override
     public List<ContactRow> snapshot(String owner) {
         ensureSchema();
         return queryMany(
@@ -113,7 +101,7 @@ public class ContactStore {
                 st -> st.setString(1, owner));
     }
 
-    /** The owner's seq high-water mark (0 = no rows yet). */
+    @Override
     public long highSeq(String owner) {
         ensureSchema();
         try (Connection c = ds.getConnection();

@@ -1,8 +1,8 @@
 package com.telcobright.party.v2.contacts.internal;
 
 import com.telcobright.party.v2.contacts.api.emit.ContactsChanged;
-import com.telcobright.party.v2.contacts.internal.store.ContactStore;
-import com.telcobright.party.v2.contacts.internal.store.ContactStore.ContactRow;
+import com.telcobright.party.v2.contacts.api.spi.ContactStore;
+import com.telcobright.party.v2.contacts.api.spi.ContactStore.ContactRow;
 import com.telcobright.party.v2.contacts.api.spi.InviteSender;
 import com.telcobright.party.v2.model.E164;
 import com.telcobright.party.v2.model.ProviderException;

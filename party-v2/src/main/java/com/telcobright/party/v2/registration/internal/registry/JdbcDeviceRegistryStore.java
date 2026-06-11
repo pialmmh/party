@@ -1,5 +1,7 @@
 package com.telcobright.party.v2.registration.internal.registry;
 
+import com.telcobright.party.v2.registration.api.spi.DeviceRegistryStore;
+
 import io.agroal.api.AgroalDataSource;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -16,19 +18,12 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * The durable device registry (frozen §2) — one row per (device, account)
- * install. Deactivate-don't-delete: revocation flips status; rows are never
- * removed (Conversations pattern).
+ * The MySQL impl of the {@link DeviceRegistryStore} port (frozen §2).
+ * Lazy schema init — operators that don't configure the registration
+ * datasource must still boot party-api.
  */
 @ApplicationScoped
-public class DeviceRegistryStore {
-
-    public record DeviceRow(String deviceId, long partnerId, String e164, String status,
-                            String refreshTokenHash, String pushToken, Instant lastSeen) {}
-
-    public static final String ACTIVE = "ACTIVE";
-    public static final String REVOKED = "REVOKED";
-    public static final String EXPIRED = "EXPIRED";
+public class JdbcDeviceRegistryStore implements DeviceRegistryStore {
 
     private static final String DDL = """
             CREATE TABLE IF NOT EXISTS device_registry (
@@ -65,7 +60,7 @@ public class DeviceRegistryStore {
         }
     }
 
-    /** Registration (re)claims the device id: same install re-registering goes ACTIVE again. */
+    @Override
     public void upsertActive(String deviceId, long partnerId, String e164, String refreshTokenHash) {
         ensureSchema();
         String sql = """
@@ -82,18 +77,21 @@ public class DeviceRegistryStore {
         });
     }
 
+    @Override
     public Optional<DeviceRow> findByRefreshTokenHash(String hash) {
         ensureSchema();
         return queryOne("SELECT * FROM device_registry WHERE refresh_token_hash = ?",
                 st -> st.setString(1, hash));
     }
 
+    @Override
     public Optional<DeviceRow> findByDeviceId(String deviceId) {
         ensureSchema();
         return queryOne("SELECT * FROM device_registry WHERE device_id = ?",
                 st -> st.setString(1, deviceId));
     }
 
+    @Override
     public List<DeviceRow> listByE164(String e164) {
         ensureSchema();
         List<DeviceRow> out = new ArrayList<>();
@@ -109,11 +107,13 @@ public class DeviceRegistryStore {
         return out;
     }
 
+    @Override
     public void rotateRefreshToken(String deviceId, String newHash) {
         execute("UPDATE device_registry SET refresh_token_hash = ?, last_seen = CURRENT_TIMESTAMP WHERE device_id = ?",
                 st -> { st.setString(1, newHash); st.setString(2, deviceId); });
     }
 
+    @Override
     public void setStatus(String deviceId, String status) {
         execute("UPDATE device_registry SET status = ? WHERE device_id = ?",
                 st -> { st.setString(1, status); st.setString(2, deviceId); });

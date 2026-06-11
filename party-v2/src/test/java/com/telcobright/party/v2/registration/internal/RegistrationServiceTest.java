@@ -4,8 +4,8 @@ import com.telcobright.party.v2.registration.api.emit.DeviceRevoked;
 import com.telcobright.party.v2.registration.api.emit.SubscriberProvisioned;
 import com.telcobright.party.v2.registration.internal.entitlement.EntitlementGate;
 import com.telcobright.party.v2.registration.internal.otp.OtpChallengeStore;
-import com.telcobright.party.v2.registration.internal.registry.DeviceRegistryStore;
-import com.telcobright.party.v2.registration.internal.registry.DeviceRegistryStore.DeviceRow;
+import com.telcobright.party.v2.registration.api.spi.DeviceRegistryStore;
+import com.telcobright.party.v2.registration.api.spi.DeviceRegistryStore.DeviceRow;
 import com.telcobright.party.v2.registration.internal.token.RefreshTokens;
 import com.telcobright.party.v2.testkit.Beans;
 import com.telcobright.party.v2.testkit.FakeFacadeDirectory;
@@ -32,8 +32,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /** The §2 flows end-to-end in-unit: every collaborator is a fake behind its port. */
 class RegistrationServiceTest {
 
-    /** In-memory registry — overrides every public method; never touches SQL. */
-    static class FakeDeviceRegistry extends DeviceRegistryStore {
+    /** In-memory impl of the DeviceRegistryStore port. */
+    static class FakeDeviceRegistry implements DeviceRegistryStore {
         final Map<String, DeviceRow> rows = new LinkedHashMap<>();
 
         void seed(DeviceRow row) { rows.put(row.deviceId(), row); }
