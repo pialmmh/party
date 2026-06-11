@@ -9,7 +9,7 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.time.Instant;
+import java.time.Clock;
 import java.util.Base64;
 import java.util.Optional;
 
@@ -30,6 +30,7 @@ public class DeviceTokens {
     private final ObjectMapper json = new ObjectMapper();
 
     @Inject JwtSharedKey sharedKey;
+    @Inject Clock clock;
 
     /** Empty on ANY defect: malformed, bad signature, expired, missing claims. */
     public Optional<DeviceClaims> verify(String token) {
@@ -38,7 +39,7 @@ public class DeviceTokens {
             if (parts.length != 3) return Optional.empty();
             if (!signatureMatches(parts[0] + "." + parts[1], parts[2])) return Optional.empty();
             JsonNode claims = json.readTree(B64.decode(parts[1]));
-            if (claims.path("exp").asLong() < Instant.now().getEpochSecond()) return Optional.empty();
+            if (claims.path("exp").asLong() < clock.instant().getEpochSecond()) return Optional.empty();
             String jid = claims.path("jid").asText(null);
             String deviceId = claims.path("device_id").asText(null);
             if (jid == null || deviceId == null) return Optional.empty();

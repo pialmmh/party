@@ -17,6 +17,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -40,6 +41,7 @@ public class RegistrationService {
     public record RefreshedTokens(String xmppCredential, String refreshToken) {}
 
     @Inject RegistrationConfig cfg;
+    @Inject Clock clock;
     @Inject OtpChallengeStore otpStore;
     @Inject OtpSender otpSender;
     @Inject FacadeDirectory facades;
@@ -159,7 +161,7 @@ public class RegistrationService {
         if (!DeviceRegistryStore.ACTIVE.equals(row.status())) {
             throw RegistrationDenied.unauthorized("refresh refused");
         }
-        Instant cutoff = Instant.now().minus(Duration.ofDays(cfg.device().inactivityExpireDays()));
+        Instant cutoff = clock.instant().minus(Duration.ofDays(cfg.device().inactivityExpireDays()));
         if (row.lastSeen() != null && row.lastSeen().isBefore(cutoff)) {
             devices.setStatus(row.deviceId(), DeviceRegistryStore.EXPIRED);
             LOG.infof("device %s expired after inactivity (last seen %s)", row.deviceId(), row.lastSeen());

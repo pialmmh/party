@@ -27,9 +27,7 @@ public class EjabberdAdminClient implements SessionKiller {
 
     private static final Logger LOG = Logger.getLogger(EjabberdAdminClient.class);
 
-    private final HttpClient http = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(3)).build();
-
+    @Inject HttpClient http;
     @Inject RegistrationConfig cfg;
 
     /** Best-effort: revocation must not fail because the kick did. */

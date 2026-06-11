@@ -31,9 +31,7 @@ public class EntitlementClient implements EntitlementCheck {
     private static final Logger LOG = Logger.getLogger(EntitlementClient.class);
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    private final HttpClient http = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(3)).build();
-
+    @Inject HttpClient http;
     @Inject RegistrationConfig cfg;
 
     @Override

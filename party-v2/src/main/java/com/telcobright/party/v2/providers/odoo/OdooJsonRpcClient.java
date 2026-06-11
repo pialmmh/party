@@ -38,6 +38,11 @@ public final class OdooJsonRpcClient {
     private final AtomicLong corr = new AtomicLong(1);
 
     public OdooJsonRpcClient(String baseUrl, String db, int timeoutMillis) {
+        this(defaultHttpClient(), baseUrl, db, timeoutMillis);
+    }
+
+    /** Injected-client ctor — hand in the shared HttpClient (tests: a fake). */
+    public OdooJsonRpcClient(HttpClient http, String baseUrl, String db, int timeoutMillis) {
         if (baseUrl == null || baseUrl.isBlank()) {
             throw new IllegalArgumentException("odoo baseUrl required");
         }
@@ -48,9 +53,11 @@ public final class OdooJsonRpcClient {
         this.endpoint = trimmed + "/jsonrpc";
         this.db = db;
         this.timeout = Duration.ofMillis(timeoutMillis <= 0 ? 5000 : timeoutMillis);
-        this.http = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(3))
-                .build();
+        this.http = http;
+    }
+
+    private static HttpClient defaultHttpClient() {
+        return HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
     }
 
     public String db() { return db; }

@@ -10,7 +10,7 @@ import jakarta.inject.Inject;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
+import java.time.Clock;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -30,10 +30,11 @@ public class HmacTokenMinter implements TokenMinter {
 
     @Inject RegistrationConfig cfg;
     @Inject JwtSharedKey sharedKey;
+    @Inject Clock clock;
 
     @Override
     public String mint(String jid, String deviceId) {
-        long now = Instant.now().getEpochSecond();
+        long now = clock.instant().getEpochSecond();
         Map<String, Object> claims = new LinkedHashMap<>();
         claims.put("jid", jid);
         claims.put("device_id", deviceId);

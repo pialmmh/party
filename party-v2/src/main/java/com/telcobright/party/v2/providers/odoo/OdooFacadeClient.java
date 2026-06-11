@@ -25,6 +25,7 @@ public class OdooFacadeClient implements FacadeDirectory {
     private static final List<String> SUMMARY_FIELDS = List.of("id", "e164", "jid", "status", "partner_id");
 
     @Inject PartyV2Config partyCfg;
+    @Inject java.net.http.HttpClient http;
 
     @ConfigProperty(name = "party.v2.registration.tenant", defaultValue = "t1")
     String tenant;
@@ -106,7 +107,7 @@ public class OdooFacadeClient implements FacadeDirectory {
                     () -> new ProviderException("odoo admin-user required for facade provisioning"));
             adminPassword = oc.adminPassword().orElseThrow(
                     () -> new ProviderException("odoo admin-password required for facade provisioning"));
-            c = new OdooJsonRpcClient(oc.baseUrl(), oc.db(), oc.timeoutMillis());
+            c = new OdooJsonRpcClient(http, oc.baseUrl(), oc.db(), oc.timeoutMillis());
             client = c;
         }
         return c;

@@ -5,6 +5,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.security.SecureRandom;
+import java.time.Clock;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -25,11 +26,12 @@ public class OtpChallengeStore {
     private final SecureRandom random = new SecureRandom();
 
     @Inject RegistrationConfig cfg;
+    @Inject Clock clock;
 
     public String issue(String phone, String code) {
         purgeExpired();
         String otpToken = UUID.randomUUID().toString();
-        long expiry = System.currentTimeMillis() + cfg.otp().ttlSeconds() * 1000L;
+        long expiry = clock.millis() + cfg.otp().ttlSeconds() * 1000L;
         byToken.put(otpToken, new Challenge(phone, code, expiry, new AtomicInteger()));
         return otpToken;
     }
@@ -41,7 +43,7 @@ public class OtpChallengeStore {
     /** Returns the phone on success and consumes the challenge; empty otherwise. */
     public Optional<String> verifyAndConsume(String otpToken, String code) {
         Challenge ch = byToken.get(otpToken);
-        if (ch == null || System.currentTimeMillis() > ch.expiresAtMs()) {
+        if (ch == null || clock.millis() > ch.expiresAtMs()) {
             byToken.remove(otpToken);
             return Optional.empty();
         }
@@ -57,7 +59,7 @@ public class OtpChallengeStore {
     }
 
     private void purgeExpired() {
-        long now = System.currentTimeMillis();
+        long now = clock.millis();
         byToken.entrySet().removeIf(e -> now > e.getValue().expiresAtMs());
     }
 }
