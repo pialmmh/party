@@ -1,5 +1,6 @@
 package com.telcobright.party.keycloak;
 
+import com.telcobright.party.keycloak.api.spi.PartyClient;
 import org.keycloak.component.ComponentModel;
 import org.keycloak.credential.CredentialInput;
 import org.keycloak.credential.CredentialInputValidator;
@@ -90,12 +91,12 @@ class PartyUserStorageProvider implements
         PartyClient.ValidateResult res = client.validate(
                 realm.getName(), user.getUsername(), input.getChallengeResponse());
 
-        if (!res.valid) return false;
+        if (!res.valid()) return false;
 
         // Attach the v2 profile to the same UserModel instance so subsequent reads
         // during this login round-trip (getEmail, getFirstName, role mappers) see it.
-        if (res.user != null && user instanceof PartyUserAdapter pua) {
-            pua.attachProfile(res.user);
+        if (res.user() != null && user instanceof PartyUserAdapter pua) {
+            pua.attachProfile(res.user());
         }
         return true;
     }

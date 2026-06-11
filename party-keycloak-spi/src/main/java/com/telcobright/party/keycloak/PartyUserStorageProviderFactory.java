@@ -1,5 +1,7 @@
 package com.telcobright.party.keycloak;
 
+import com.telcobright.party.keycloak.api.spi.PartyClient;
+import com.telcobright.party.keycloak.internal.HttpPartyClient;
 import org.keycloak.component.ComponentModel;
 import org.keycloak.component.ComponentValidationException;
 import org.keycloak.models.KeycloakSession;
@@ -41,7 +43,10 @@ public class PartyUserStorageProviderFactory
     public PartyUserStorageProvider create(KeycloakSession session, ComponentModel model) {
         String url            = model.get(CONFIG_URL);
         String tenantOverride = model.get(CONFIG_TENANT_OVERRIDE);
-        PartyClient client = new PartyClient(url, tenantOverride);
+        PartyClient client = new HttpPartyClient(
+                java.net.http.HttpClient.newBuilder()
+                        .connectTimeout(java.time.Duration.ofSeconds(3)).build(),
+                url, tenantOverride);
         return new PartyUserStorageProvider(session, model, client);
     }
 
