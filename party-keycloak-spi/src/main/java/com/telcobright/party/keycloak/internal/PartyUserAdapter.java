@@ -1,4 +1,4 @@
-package com.telcobright.party.keycloak;
+package com.telcobright.party.keycloak.internal;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.keycloak.component.ComponentModel;

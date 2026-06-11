@@ -1,4 +1,4 @@
-package com.telcobright.party.keycloak;
+package com.telcobright.party.keycloak.internal;
 
 import com.telcobright.party.keycloak.api.spi.PartyClient;
 import org.keycloak.component.ComponentModel;
@@ -35,7 +35,7 @@ import java.util.stream.Stream;
  * without profile data. Set the federation provider to IMPORT mode (or
  * UNSYNCED with cache) in the Keycloak realm so cached data survives.
  */
-class PartyUserStorageProvider implements
+public class PartyUserStorageProvider implements
         UserStorageProvider,
         UserLookupProvider,
         CredentialInputValidator,
@@ -45,7 +45,7 @@ class PartyUserStorageProvider implements
     private final ComponentModel model;
     private final PartyClient client;
 
-    PartyUserStorageProvider(KeycloakSession session, ComponentModel model, PartyClient client) {
+    public PartyUserStorageProvider(KeycloakSession session, ComponentModel model, PartyClient client) {
         this.session = session;
         this.model = model;
         this.client = client;

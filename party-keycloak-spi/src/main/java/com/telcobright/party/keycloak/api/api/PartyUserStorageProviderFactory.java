@@ -1,7 +1,8 @@
-package com.telcobright.party.keycloak;
+package com.telcobright.party.keycloak.api.api;
 
 import com.telcobright.party.keycloak.api.spi.PartyClient;
 import com.telcobright.party.keycloak.internal.HttpPartyClient;
+import com.telcobright.party.keycloak.internal.PartyUserStorageProvider;
 import org.keycloak.component.ComponentModel;
 import org.keycloak.component.ComponentValidationException;
 import org.keycloak.models.KeycloakSession;
