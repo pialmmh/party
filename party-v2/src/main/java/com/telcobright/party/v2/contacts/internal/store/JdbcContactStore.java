@@ -40,10 +40,29 @@ public class JdbcContactStore implements ContactStore {
 
     private volatile boolean schemaReady;
 
+    /** Deadlock victims retry: concurrent same-owner allocators can gap-lock collide. */
+    private static final int MAX_SEQ_RETRIES = 5;
+
     @Override
     public long upsertWithNextSeq(String owner, String contact, String petname,
                                   String state, boolean keepExistingPetnameIfNull) {
         ensureSchema();
+        for (int attempt = 1; ; attempt++) {
+            try {
+                return upsertOnce(owner, contact, petname, state, keepExistingPetnameIfNull);
+            } catch (SQLException e) {
+                if (!isDeadlock(e) || attempt >= MAX_SEQ_RETRIES) {
+                    throw new IllegalStateException("contact upsert failed: " + e.getMessage(), e);
+                }
+                // InnoDB rolled the victim back cleanly (1213/40001) — two allocators
+                // gap-locked the same owner range and both inserted. Re-running
+                // re-reads MAX(seq) FOR UPDATE and allocates the next free seq.
+            }
+        }
+    }
+
+    private long upsertOnce(String owner, String contact, String petname,
+                            String state, boolean keepExistingPetnameIfNull) throws SQLException {
         try (Connection c = ds.getConnection()) {
             c.setAutoCommit(false);
             try {
@@ -73,9 +92,11 @@ public class JdbcContactStore implements ContactStore {
             } finally {
                 c.setAutoCommit(true);
             }
-        } catch (SQLException e) {
-            throw new IllegalStateException("contact upsert failed: " + e.getMessage(), e);
         }
+    }
+
+    private static boolean isDeadlock(SQLException e) {
+        return e.getErrorCode() == 1213 || "40001".equals(e.getSQLState());
     }
 
     @Override
@@ -119,16 +140,38 @@ public class JdbcContactStore implements ContactStore {
 
     // ── internals ─────────────────────────────────────────────────────────
 
+    /**
+     * Counter-row allocation (deadlock-free): bump the owner's contact_seq row
+     * with the LAST_INSERT_ID(expr) idiom — a plain row X-lock serializes
+     * same-owner allocators with NO gap locks. The previous
+     * SELECT MAX(seq) FOR UPDATE range scan let two allocators share a gap
+     * lock and deadlock on the inserts (caught by the SQL-tier race test).
+     */
     private static long nextSeq(Connection c, String owner) throws SQLException {
         try (PreparedStatement st = c.prepareStatement(
-                "SELECT COALESCE(MAX(seq), 0) + 1 FROM contact WHERE owner_e164 = ? FOR UPDATE")) {
+                "INSERT INTO contact_seq (owner_e164, seq) VALUES (?, LAST_INSERT_ID(1)) "
+                        + "ON DUPLICATE KEY UPDATE seq = LAST_INSERT_ID(seq + 1)")) {
             st.setString(1, owner);
-            try (ResultSet rs = st.executeQuery()) {
-                rs.next();
-                return rs.getLong(1);
-            }
+            st.executeUpdate();
+        }
+        try (PreparedStatement st = c.prepareStatement("SELECT LAST_INSERT_ID()");
+             ResultSet rs = st.executeQuery()) {
+            rs.next();
+            return rs.getLong(1);
         }
     }
+
+    private static final String DDL_SEQ = """
+            CREATE TABLE IF NOT EXISTS contact_seq (
+              owner_e164 VARCHAR(20) PRIMARY KEY,
+              seq        BIGINT      NOT NULL
+            )""";
+
+    /** One-shot migration: owners with rows but no counter start at their MAX(seq). */
+    private static final String SEED_SEQ = """
+            INSERT INTO contact_seq (owner_e164, seq)
+            SELECT owner_e164, MAX(seq) FROM contact GROUP BY owner_e164
+            ON DUPLICATE KEY UPDATE contact_seq.seq = GREATEST(contact_seq.seq, VALUES(seq))""";
 
     private void ensureSchema() {
         if (schemaReady) return;
@@ -136,6 +179,8 @@ public class JdbcContactStore implements ContactStore {
             if (schemaReady) return;
             try (Connection c = ds.getConnection(); Statement st = c.createStatement()) {
                 st.execute(DDL);
+                st.execute(DDL_SEQ);
+                st.execute(SEED_SEQ);
                 schemaReady = true;
             } catch (SQLException e) {
                 throw new IllegalStateException("contact schema init failed: " + e.getMessage(), e);
