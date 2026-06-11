@@ -117,12 +117,13 @@ public class OdooLoginPolicy implements AuthPolicy {
                 "res.users", "read",
                 List.of(List.of(uid)),
                 OdooJsonRpcClient.kwargs(
-                        "fields", List.of("id", "login", "name", "email", "active", "groups_id")));
+                        // Odoo 19 renamed res.users.groups_id → group_ids (direct groups).
+                        "fields", List.of("id", "login", "name", "email", "active", "group_ids")));
         if (rows == null || !rows.isArray() || rows.isEmpty()) {
             throw new ProviderException("odoo res.users.read returned empty for uid " + uid);
         }
         JsonNode row = rows.get(0);
-        List<Role> roles = readRoles(client, uid, password, row.get("groups_id"));
+        List<Role> roles = readRoles(client, uid, password, row.get("group_ids"));
         return new UserProfile(
                 String.valueOf(row.get("id").asInt()),
                 textOrNull(row, "login"),

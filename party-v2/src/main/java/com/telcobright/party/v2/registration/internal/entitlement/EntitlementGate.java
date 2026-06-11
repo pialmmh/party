@@ -3,30 +3,27 @@ import com.telcobright.party.v2.registration.internal.RegistrationConfig;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.jboss.logging.Logger;
 
 /**
  * Entitlement check at ISSUANCE (frozen §2): does the partner hold an ACTIVE
- * im_subscription PackageAccount in RTC-Manager? secure-link is an
- * enforcement point, same pattern as the radius/PBX/SMS gateways.
+ * im_subscription in the subscription authority? secure-link is an enforcement
+ * point, same pattern as the radius/PBX/SMS gateways.
  *
- * Behind {@code entitlement.enforce=false} until the RTC-Manager endpoint is
- * agreed — the platform's KB-events bridge is a known gap, so end-to-end
- * purchase isn't testable yet. Designed against PackageAccount ACTIVE.
+ * {@code entitlement.enforce=false} keeps the gate open (legacy default);
+ * when enforced it delegates to {@link EntitlementClient}, which queries the
+ * RTC-Manager entitlement endpoint (served today by portal-api over the
+ * rtc_mock mirror).
  */
 @ApplicationScoped
 public class EntitlementGate {
 
-    private static final Logger LOG = Logger.getLogger(EntitlementGate.class);
-
     @Inject RegistrationConfig cfg;
+    @Inject EntitlementClient client;
 
     public boolean hasActiveImSubscription(long partnerId, String e164) {
         if (!cfg.entitlement().enforce()) {
             return true;
         }
-        // TODO wire the agreed RTC-Manager endpoint (PackageAccount ACTIVE for im_subscription).
-        LOG.warnf("entitlement.enforce=true but RTC-Manager client not wired — denying %s", e164);
-        return false;
+        return client.hasActiveImSubscription(partnerId, e164);
     }
 }

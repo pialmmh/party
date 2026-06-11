@@ -42,8 +42,10 @@ party:
           base-url:        "${PARTY_V2_T1_ODOO_URL:http://127.0.0.1:7170}"
           # The real instance (orchestrix-v2/odoo-backend-19) serves only this DB (dbfilter).
           db:              "${PARTY_V2_T1_ODOO_DB:odoo_billing_19}"
-          admin-user:      "${PARTY_V2_T1_ODOO_ADMIN_USER:}"
-          admin-password:  "${PARTY_V2_T1_ODOO_ADMIN_PASSWORD:}"
+          # Local-dev default admin/admin (same as portal-api's dev profile);
+          # prod supplies real creds via env. Needed for facade provisioning.
+          admin-user:      "${PARTY_V2_T1_ODOO_ADMIN_USER:admin}"
+          admin-password:  "${PARTY_V2_T1_ODOO_ADMIN_PASSWORD:admin}"
           timeout-millis:  5000
           # Models to introspect for the policy builder vocabulary.
           # Requires admin-user + admin-password to be set; otherwise the names
@@ -88,8 +90,13 @@ party:
         host: "${PARTY_REG_XMPP_HOST:10.10.185.1}"
         port: 5222
       entitlement:
-        # OFF until the RTC-Manager PackageAccount endpoint is agreed.
-        enforce: false
+        # ON: registration requires an ACTIVE IM subscription. base-url is the
+        # RTC-Manager entitlement endpoint — served today by portal-api (BSS)
+        # over the rtc_mock mirror; a base-url swap moves it to the real
+        # RTC-Manager with no code change. portal-api auto-provisions the free
+        # default IM sub for a registered partner, so this passes by default.
+        enforce: true
+        base-url: "${PARTY_REG_ENTITLEMENT_URL:http://127.0.0.1:7120}"
       ejabberd:
         # ON once mod_http_api is enabled on it_vm (central-kill kick).
         kick-enabled: false
