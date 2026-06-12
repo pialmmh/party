@@ -1,4 +1,4 @@
-package com.telcobright.party.v2.registration.api.api;
+package com.telcobright.party.v2.registration.api;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.telcobright.party.v2.registration.internal.RegistrationDenied;

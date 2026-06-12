@@ -1,4 +1,4 @@
-package com.telcobright.party.v2.contacts.api.spi;
+package com.telcobright.party.v2.contacts.spi;
 
 import java.util.List;
 import java.util.Optional;

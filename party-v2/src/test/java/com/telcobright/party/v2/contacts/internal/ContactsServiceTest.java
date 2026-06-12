@@ -1,8 +1,8 @@
 package com.telcobright.party.v2.contacts.internal;
 
-import com.telcobright.party.v2.contacts.api.emit.ContactsChanged;
-import com.telcobright.party.v2.contacts.api.spi.ContactStore;
-import com.telcobright.party.v2.contacts.api.spi.ContactStore.ContactRow;
+import com.telcobright.party.v2.contacts.publishes.ContactsChanged;
+import com.telcobright.party.v2.contacts.spi.ContactStore;
+import com.telcobright.party.v2.contacts.spi.ContactStore.ContactRow;
 import com.telcobright.party.v2.testkit.Beans;
 import com.telcobright.party.v2.testkit.FakeFacadeDirectory;
 import jakarta.enterprise.event.Event;
@@ -105,7 +105,7 @@ class ContactsServiceTest {
         Beans.set(service, "store", store);
         Beans.set(service, "facades", facades);
         Beans.set(service, "inviteSender",
-                (com.telcobright.party.v2.contacts.api.spi.InviteSender) (from, to) -> {
+                (com.telcobright.party.v2.contacts.spi.InviteSender) (from, to) -> {
                     if (!inviteDeliveryUp) throw new IllegalStateException("no gateway");
                     invites.add(from + ">" + to);
                 });

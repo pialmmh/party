@@ -1,4 +1,4 @@
-package com.telcobright.party.v2.registration.api.spi;
+package com.telcobright.party.v2.registration.spi;
 
 /**
  * Live-session kill port (frozen §2 central kill): end the CURRENT XMPP

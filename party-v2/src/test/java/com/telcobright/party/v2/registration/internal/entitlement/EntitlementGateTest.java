@@ -18,7 +18,7 @@ class EntitlementGateTest {
         cfg.entitlementEnforce = enforce;
         EntitlementGate g = new EntitlementGate();
         Beans.set(g, "cfg", cfg);
-        Beans.set(g, "check", (com.telcobright.party.v2.registration.api.spi.EntitlementCheck)
+        Beans.set(g, "check", (com.telcobright.party.v2.registration.spi.EntitlementCheck)
                 (partnerId, e164) -> { calls.incrementAndGet(); return answer; });
         return g;
     }

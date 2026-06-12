@@ -2,7 +2,7 @@ package com.telcobright.party.keycloak.internal;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.telcobright.party.keycloak.api.spi.PartyClient;
+import com.telcobright.party.keycloak.spi.PartyClient;
 
 import java.net.URI;
 import java.net.http.HttpClient;

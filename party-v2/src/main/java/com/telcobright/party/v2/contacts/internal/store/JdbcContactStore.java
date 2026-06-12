@@ -1,6 +1,6 @@
 package com.telcobright.party.v2.contacts.internal.store;
 
-import com.telcobright.party.v2.contacts.api.spi.ContactStore;
+import com.telcobright.party.v2.contacts.spi.ContactStore;
 
 import io.agroal.api.AgroalDataSource;
 import jakarta.enterprise.context.ApplicationScoped;

@@ -1,7 +1,7 @@
 package com.telcobright.party.v2.contacts.internal.store;
 
-import com.telcobright.party.v2.contacts.api.spi.ContactStore;
-import com.telcobright.party.v2.contacts.api.spi.ContactStore.ContactRow;
+import com.telcobright.party.v2.contacts.spi.ContactStore;
+import com.telcobright.party.v2.contacts.spi.ContactStore.ContactRow;
 import com.telcobright.party.v2.testkit.Beans;
 import com.telcobright.party.v2.testkit.LocalMysql;
 import org.junit.jupiter.api.Assumptions;

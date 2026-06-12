@@ -1,7 +1,7 @@
 package com.telcobright.party.keycloak.internal;
 
 import com.sun.net.httpserver.HttpServer;
-import com.telcobright.party.keycloak.api.spi.PartyClient;
+import com.telcobright.party.keycloak.spi.PartyClient;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

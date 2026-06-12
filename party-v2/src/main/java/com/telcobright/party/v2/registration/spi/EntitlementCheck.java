@@ -1,4 +1,4 @@
-package com.telcobright.party.v2.registration.api.spi;
+package com.telcobright.party.v2.registration.spi;
 
 /**
  * Entitlement authority port (frozen §2): does the partner hold an ACTIVE IM

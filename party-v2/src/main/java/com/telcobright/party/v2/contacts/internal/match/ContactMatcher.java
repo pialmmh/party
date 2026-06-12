@@ -3,7 +3,7 @@ import com.telcobright.party.v2.contacts.internal.Denied;
 
 import com.telcobright.party.v2.model.E164;
 import com.telcobright.party.v2.model.ProviderException;
-import com.telcobright.party.v2.api.spi.FacadeDirectory;
+import com.telcobright.party.v2.spi.FacadeDirectory;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;

@@ -1,4 +1,4 @@
-package com.telcobright.party.v2.contacts.api.emit;
+package com.telcobright.party.v2.contacts.publishes;
 
 /**
  * Emitted on every contact-graph mutation for an owner; {@code seq} is the

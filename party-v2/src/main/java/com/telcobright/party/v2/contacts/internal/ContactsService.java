@@ -1,12 +1,12 @@
 package com.telcobright.party.v2.contacts.internal;
 
-import com.telcobright.party.v2.contacts.api.emit.ContactsChanged;
-import com.telcobright.party.v2.contacts.api.spi.ContactStore;
-import com.telcobright.party.v2.contacts.api.spi.ContactStore.ContactRow;
-import com.telcobright.party.v2.contacts.api.spi.InviteSender;
+import com.telcobright.party.v2.contacts.publishes.ContactsChanged;
+import com.telcobright.party.v2.contacts.spi.ContactStore;
+import com.telcobright.party.v2.contacts.spi.ContactStore.ContactRow;
+import com.telcobright.party.v2.contacts.spi.InviteSender;
 import com.telcobright.party.v2.model.E164;
 import com.telcobright.party.v2.model.ProviderException;
-import com.telcobright.party.v2.api.spi.FacadeDirectory;
+import com.telcobright.party.v2.spi.FacadeDirectory;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;

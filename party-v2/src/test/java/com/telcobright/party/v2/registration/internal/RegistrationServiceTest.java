@@ -1,11 +1,11 @@
 package com.telcobright.party.v2.registration.internal;
 
-import com.telcobright.party.v2.registration.api.emit.DeviceRevoked;
-import com.telcobright.party.v2.registration.api.emit.SubscriberProvisioned;
+import com.telcobright.party.v2.registration.publishes.DeviceRevoked;
+import com.telcobright.party.v2.registration.publishes.SubscriberProvisioned;
 import com.telcobright.party.v2.registration.internal.entitlement.EntitlementGate;
 import com.telcobright.party.v2.registration.internal.otp.OtpChallengeStore;
-import com.telcobright.party.v2.registration.api.spi.DeviceRegistryStore;
-import com.telcobright.party.v2.registration.api.spi.DeviceRegistryStore.DeviceRow;
+import com.telcobright.party.v2.registration.spi.DeviceRegistryStore;
+import com.telcobright.party.v2.registration.spi.DeviceRegistryStore.DeviceRow;
 import com.telcobright.party.v2.registration.internal.token.RefreshTokens;
 import com.telcobright.party.v2.testkit.Beans;
 import com.telcobright.party.v2.testkit.FakeFacadeDirectory;
@@ -99,7 +99,7 @@ class RegistrationServiceTest {
         EntitlementGate gate = new EntitlementGate();
         Beans.set(gate, "cfg", cfg);
         Beans.set(gate, "check",
-                (com.telcobright.party.v2.registration.api.spi.EntitlementCheck)
+                (com.telcobright.party.v2.registration.spi.EntitlementCheck)
                         (partnerId, e164) -> entitled);
 
         service = new RegistrationService();
@@ -107,15 +107,15 @@ class RegistrationServiceTest {
         Beans.set(service, "clock", clock);
         Beans.set(service, "otpStore", otpStore);
         Beans.set(service, "otpSender",
-                (com.telcobright.party.v2.registration.api.spi.OtpSender) (phone, code) -> {});
+                (com.telcobright.party.v2.registration.spi.OtpSender) (phone, code) -> {});
         Beans.set(service, "facades", facades);
         Beans.set(service, "entitlement", gate);
         Beans.set(service, "devices", devices);
         Beans.set(service, "minter",
-                (com.telcobright.party.v2.registration.api.spi.TokenMinter)
+                (com.telcobright.party.v2.registration.spi.TokenMinter)
                         (jid, deviceId) -> "jwt:" + jid + ":" + deviceId);
         Beans.set(service, "sessions",
-                (com.telcobright.party.v2.registration.api.spi.SessionKiller)
+                (com.telcobright.party.v2.registration.spi.SessionKiller)
                         (user, host, resource) -> kicks.add(new Kick(user, host, resource)));
         Beans.set(service, "events", events);
     }

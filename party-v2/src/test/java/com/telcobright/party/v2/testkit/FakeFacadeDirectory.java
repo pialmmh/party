@@ -1,6 +1,6 @@
 package com.telcobright.party.v2.testkit;
 
-import com.telcobright.party.v2.api.spi.FacadeDirectory;
+import com.telcobright.party.v2.spi.FacadeDirectory;
 import com.telcobright.party.v2.model.E164;
 
 import java.util.ArrayList;

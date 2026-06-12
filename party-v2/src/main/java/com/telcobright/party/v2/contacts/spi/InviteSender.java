@@ -1,4 +1,4 @@
-package com.telcobright.party.v2.contacts.api.spi;
+package com.telcobright.party.v2.contacts.spi;
 
 /**
  * Delivers an app invite to a non-user's phone. Dev mode logs it

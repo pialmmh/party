@@ -1,7 +1,7 @@
 package com.telcobright.party.v2.providers.odoo;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.telcobright.party.v2.api.spi.FacadeDirectory;
+import com.telcobright.party.v2.spi.FacadeDirectory;
 import com.telcobright.party.v2.config.PartyV2Config;
 import com.telcobright.party.v2.model.ProviderException;
 import jakarta.enterprise.context.ApplicationScoped;

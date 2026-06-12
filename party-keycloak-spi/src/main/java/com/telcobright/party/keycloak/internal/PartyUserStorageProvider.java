@@ -1,6 +1,6 @@
 package com.telcobright.party.keycloak.internal;
 
-import com.telcobright.party.keycloak.api.spi.PartyClient;
+import com.telcobright.party.keycloak.spi.PartyClient;
 import org.keycloak.component.ComponentModel;
 import org.keycloak.credential.CredentialInput;
 import org.keycloak.credential.CredentialInputValidator;

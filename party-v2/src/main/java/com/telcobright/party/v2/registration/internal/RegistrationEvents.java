@@ -1,7 +1,7 @@
 package com.telcobright.party.v2.registration.internal;
 
-import com.telcobright.party.v2.registration.api.emit.DeviceRevoked;
-import com.telcobright.party.v2.registration.api.emit.SubscriberProvisioned;
+import com.telcobright.party.v2.registration.publishes.DeviceRevoked;
+import com.telcobright.party.v2.registration.publishes.SubscriberProvisioned;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;

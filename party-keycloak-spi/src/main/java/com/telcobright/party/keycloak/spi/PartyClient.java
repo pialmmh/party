@@ -1,4 +1,4 @@
-package com.telcobright.party.keycloak.api.spi;
+package com.telcobright.party.keycloak.spi;
 
 import com.fasterxml.jackson.databind.JsonNode;
 

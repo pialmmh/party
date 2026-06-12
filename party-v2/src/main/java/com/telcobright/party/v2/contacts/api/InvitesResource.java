@@ -1,4 +1,4 @@
-package com.telcobright.party.v2.contacts.api.api;
+package com.telcobright.party.v2.contacts.api;
 
 import com.telcobright.party.v2.contacts.internal.ContactsService;
 import com.telcobright.party.v2.contacts.internal.Denied;

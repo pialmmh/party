@@ -1,6 +1,6 @@
-package com.telcobright.party.keycloak.api.api;
+package com.telcobright.party.keycloak.api;
 
-import com.telcobright.party.keycloak.api.spi.PartyClient;
+import com.telcobright.party.keycloak.spi.PartyClient;
 import com.telcobright.party.keycloak.internal.HttpPartyClient;
 import com.telcobright.party.keycloak.internal.PartyUserStorageProvider;
 import org.keycloak.component.ComponentModel;

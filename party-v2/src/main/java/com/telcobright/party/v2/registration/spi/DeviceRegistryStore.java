@@ -1,4 +1,4 @@
-package com.telcobright.party.v2.registration.api.spi;
+package com.telcobright.party.v2.registration.spi;
 
 import java.time.Instant;
 import java.util.List;

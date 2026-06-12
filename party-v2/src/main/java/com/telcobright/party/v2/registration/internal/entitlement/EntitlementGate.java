@@ -1,5 +1,5 @@
 package com.telcobright.party.v2.registration.internal.entitlement;
-import com.telcobright.party.v2.registration.api.spi.EntitlementCheck;
+import com.telcobright.party.v2.registration.spi.EntitlementCheck;
 import com.telcobright.party.v2.registration.internal.RegistrationConfig;
 
 import jakarta.enterprise.context.ApplicationScoped;

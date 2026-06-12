@@ -1,5 +1,5 @@
 package com.telcobright.party.v2.registration.internal.token;
-import com.telcobright.party.v2.registration.api.spi.TokenMinter;
+import com.telcobright.party.v2.registration.spi.TokenMinter;
 import com.telcobright.party.v2.registration.internal.RegistrationConfig;
 
 import com.fasterxml.jackson.databind.ObjectMapper;

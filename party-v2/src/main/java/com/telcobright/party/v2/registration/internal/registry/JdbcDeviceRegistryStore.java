@@ -1,6 +1,6 @@
 package com.telcobright.party.v2.registration.internal.registry;
 
-import com.telcobright.party.v2.registration.api.spi.DeviceRegistryStore;
+import com.telcobright.party.v2.registration.spi.DeviceRegistryStore;
 
 import io.agroal.api.AgroalDataSource;
 import jakarta.enterprise.context.ApplicationScoped;

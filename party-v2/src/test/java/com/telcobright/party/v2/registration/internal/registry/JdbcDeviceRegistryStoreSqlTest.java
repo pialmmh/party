@@ -1,7 +1,7 @@
 package com.telcobright.party.v2.registration.internal.registry;
 
-import com.telcobright.party.v2.registration.api.spi.DeviceRegistryStore;
-import com.telcobright.party.v2.registration.api.spi.DeviceRegistryStore.DeviceRow;
+import com.telcobright.party.v2.registration.spi.DeviceRegistryStore;
+import com.telcobright.party.v2.registration.spi.DeviceRegistryStore.DeviceRow;
 import com.telcobright.party.v2.testkit.Beans;
 import com.telcobright.party.v2.testkit.LocalMysql;
 import org.junit.jupiter.api.Assumptions;
