@@ -18,7 +18,7 @@ mind before editing code.
 **Both backend and UI are built here.** Do not scatter Party code across other
 repos:
 - Backend modules: `party-domain/`, `party-master/`, `party-tenant-projection/`,
-  `party-workflows/`, `party-api/`, `party-keycloak-spi/`, `party-integration-test/`.
+  `party-workflows/`, `party-api/`, `keycloakSpi/`, `party-integration-test/`.
 - **UI will live under `party-ui/`** (to be created in this repo, sibling to
   the Maven modules). Do not build the Party admin UI inside orchestrix-v2,
   routesphere, or any other repo.

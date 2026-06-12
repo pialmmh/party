@@ -8,7 +8,7 @@ import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
 /**
- * Publishes the feature's typed events (api/emit) on the CDI event bus and
+ * Publishes the feature's typed events (publishes/) on the CDI event bus and
  * logs them — both are lifecycle milestones, so info-level is RULE ONE
  * compliant. An external bus (Pulsar) can subscribe via a CDI observer later.
  */

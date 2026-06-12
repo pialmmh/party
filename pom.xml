@@ -18,9 +18,9 @@
     </description>
 
     <modules>
-        <module>party-v2</module>
+        <module>partyV2</module>
         <module>party-api</module>
-        <module>party-keycloak-spi</module>
+        <module>keycloakSpi</module>
     </modules>
 
     <properties>
