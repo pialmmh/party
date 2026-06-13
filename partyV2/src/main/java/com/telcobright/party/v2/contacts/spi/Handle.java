@@ -1,5 +1,7 @@
 package com.telcobright.party.v2.contacts.spi;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import java.util.List;
 
 /**
@@ -22,6 +24,8 @@ public record Handle(String kind, String value, List<String> capabilities) {
         return new Handle(EMAIL, address, List.of("email"));
     }
 
+    /** Derived — not serialized (the JSON payload carries only kind/value/capabilities). */
+    @JsonIgnore
     public boolean isTel() {
         return TEL.equals(kind);
     }

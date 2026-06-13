@@ -23,13 +23,13 @@ final class ContactHashing {
         return "c:" + sha256Hex(key).substring(0, 16);
     }
 
-    /** Hash of the whole saved shape — name, handles, petname, groups, resolved person. */
-    static String contentHash(ContactCard card, String personId) {
+    /** Hash of the whole saved shape — uid (resolved person), name, handles, petname, groups, photo. */
+    static String contentHash(ContactCard card) {
         String handles = card.handles().stream()
                 .map(h -> h.kind() + ":" + h.value()).collect(Collectors.joining(","));
         String groups = card.groups().stream().sorted().collect(Collectors.joining(","));
         String canonical = String.join("|",
-                nz(card.name()), handles, nz(card.petname()), groups, nz(personId));
+                nz(card.uid()), nz(card.name()), handles, nz(card.petname()), groups, nz(card.photo()));
         return sha256Hex(canonical);
     }
 

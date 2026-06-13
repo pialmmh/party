@@ -1,13 +1,14 @@
 package com.telcobright.party.v2.contacts.internal.normalize;
 
+import com.telcobright.party.v2.contacts.internal.normalize.ContactNormalizer.IngestResult;
 import com.telcobright.party.v2.contacts.publishes.ContactEvent;
 import com.telcobright.party.v2.contacts.spi.RawContact;
 import com.telcobright.party.v2.testkit.FakeContactEventPublisher;
 import com.telcobright.party.v2.testkit.FakePartyDirectory;
+import com.telcobright.party.v2.testkit.InMemoryContactEntryStore;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
-import java.util.Optional;
 
 import static com.telcobright.party.v2.contacts.spi.ContactSource.MANUAL;
 import static com.telcobright.party.v2.contacts.spi.ContactSource.PHONEBOOK;
@@ -17,27 +18,28 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The one funnel: normalize → resolve → emit ONE canonical event, idempotently.
- * Driven entirely on fakes — no Odoo, no NATS.
+ * The one funnel: normalize → resolve → store + emit ONE canonical event,
+ * idempotently. Driven entirely on fakes — no Odoo, no MySQL, no NATS.
  */
 class ContactNormalizerTest {
 
     private final FakePartyDirectory directory = new FakePartyDirectory();
     private final FakeContactEventPublisher publisher = new FakeContactEventPublisher();
-    private final InMemoryContactDedupeStore dedupe = new InMemoryContactDedupeStore();
-    private final ContactNormalizer normalizer = new ContactNormalizer(directory, publisher, dedupe);
+    private final InMemoryContactEntryStore entries = new InMemoryContactEntryStore();
+    private final ContactNormalizer normalizer = new ContactNormalizer(directory, publisher, entries);
 
     private static RawContact raw(String name, String... handles) {
-        return new RawContact(name, List.of(handles), null, null);
+        return RawContact.of(name, List.of(handles));
     }
 
     @Test
     void userResolvesToPersonIdAndEmitsOneUpsert() {
         directory.user("+8801711000001", "p:42", "Alice");
 
-        Optional<Long> version = normalizer.ingest("p:1", raw("Alice", "+8801711000001"), PHONEBOOK);
+        IngestResult result = normalizer.ingest("p:1", raw("Alice", "+8801711000001"), PHONEBOOK).orElseThrow();
 
-        assertEquals(1L, version.orElseThrow());
+        assertEquals(1L, result.version());
+        assertTrue(result.changed());
         assertEquals(1, publisher.events.size());
         ContactEvent e = publisher.last();
         assertEquals(ContactEvent.UPSERT, e.type());
@@ -45,39 +47,44 @@ class ContactNormalizerTest {
         assertEquals("p:42", e.personId());
         assertEquals("phonebook", e.source());
         assertEquals("Alice", e.card().name());
+        assertEquals("p:42", e.card().uid());        // card uid mirrors the resolved person
         assertEquals(1, e.card().handles().size());
     }
 
     @Test
     void nonUserIsKeptWithNullPersonId() {
-        Optional<Long> version = normalizer.ingest("p:1", raw("Stranger", "+8801799999999"), PHONEBOOK);
+        IngestResult result = normalizer.ingest("p:1", raw("Stranger", "+8801799999999"), PHONEBOOK).orElseThrow();
 
-        assertTrue(version.isPresent());
-        assertNull(publisher.last().personId());     // kept per-owner for invite, no global card
+        assertTrue(result.changed());
+        assertNull(publisher.last().personId());      // kept per-owner for invite, no global card
+        assertNull(publisher.last().card().uid());
     }
 
     @Test
-    void reingestingUnchangedContentEmitsNothing() {
+    void reingestingUnchangedContentChangesNothing() {
         directory.user("+8801711000001", "p:42", "Alice");
         normalizer.ingest("p:1", raw("Alice", "+8801711000001"), PHONEBOOK);
 
-        Optional<Long> again = normalizer.ingest("p:1", raw("Alice", "+8801711000001"), PHONEBOOK);
+        IngestResult again = normalizer.ingest("p:1", raw("Alice", "+8801711000001"), PHONEBOOK).orElseThrow();
 
-        assertTrue(again.isEmpty());
-        assertEquals(1, publisher.events.size());
+        assertFalse(again.changed());
+        assertEquals(1L, again.version());            // same version returned
+        assertEquals(1, publisher.events.size());     // nothing re-published
     }
 
     @Test
     void changedPetnameBumpsVersionButKeepsTheSameContactId() {
-        RawContact first = new RawContact("Alice", List.of("+8801711000001"), null, null);
-        RawContact renamed = new RawContact("Alice", List.of("+8801711000001"), "Ali", null);
+        RawContact first = new RawContact("Alice", List.of("+8801711000001"), null, null, null);
+        RawContact renamed = new RawContact("Alice", List.of("+8801711000001"), "Ali", null, null);
 
-        assertEquals(1L, normalizer.ingest("p:1", first, MANUAL).orElseThrow());
-        String firstId = publisher.last().contactId();
-        assertEquals(2L, normalizer.ingest("p:1", renamed, MANUAL).orElseThrow());
+        IngestResult one = normalizer.ingest("p:1", first, MANUAL).orElseThrow();
+        IngestResult two = normalizer.ingest("p:1", renamed, MANUAL).orElseThrow();
 
+        assertEquals(1L, one.version());
+        assertEquals(2L, two.version());
+        assertTrue(two.changed());
+        assertEquals(one.contactId(), two.contactId());   // same handles → same entry
         assertEquals(2, publisher.events.size());
-        assertEquals(firstId, publisher.last().contactId());   // same handles → same entry
     }
 
     @Test
@@ -91,25 +98,33 @@ class ContactNormalizerTest {
 
     @Test
     void entryWithNoUsableHandleIsSkipped() {
-        Optional<Long> version = normalizer.ingest("p:1", raw("Noise", "garbage"), PHONEBOOK);
-
-        assertTrue(version.isEmpty());
+        assertTrue(normalizer.ingest("p:1", raw("Noise", "garbage"), PHONEBOOK).isEmpty());
         assertTrue(publisher.events.isEmpty());
     }
 
     @Test
     void removeTombstonesIdempotently() {
         directory.user("+8801711000001", "p:42", "Alice");
-        normalizer.ingest("p:1", raw("Alice", "+8801711000001"), MANUAL);
-        String contactId = publisher.last().contactId();
+        String contactId = normalizer.ingest("p:1", raw("Alice", "+8801711000001"), MANUAL).orElseThrow().contactId();
 
-        Optional<Long> deleted = normalizer.remove("p:1", contactId, MANUAL);
-        assertTrue(deleted.isPresent());
+        long deletedVersion = normalizer.remove("p:1", contactId, MANUAL).orElseThrow();
+        assertEquals(2L, deletedVersion);
         assertEquals(ContactEvent.DELETE, publisher.last().type());
         assertNull(publisher.last().card());
 
-        Optional<Long> deletedAgain = normalizer.remove("p:1", contactId, MANUAL);
-        assertTrue(deletedAgain.isEmpty());              // already a tombstone
+        assertTrue(normalizer.remove("p:1", contactId, MANUAL).isEmpty());   // already a tombstone
+    }
+
+    @Test
+    void reAddingAfterDeleteRepublishes() {
+        directory.user("+8801711000001", "p:42", "Alice");
+        String contactId = normalizer.ingest("p:1", raw("Alice", "+8801711000001"), MANUAL).orElseThrow().contactId();
+        normalizer.remove("p:1", contactId, MANUAL);
+
+        IngestResult readd = normalizer.ingest("p:1", raw("Alice", "+8801711000001"), MANUAL).orElseThrow();
+
+        assertTrue(readd.changed());           // tombstone cleared → real change
+        assertEquals(3L, readd.version());
     }
 
     @Test

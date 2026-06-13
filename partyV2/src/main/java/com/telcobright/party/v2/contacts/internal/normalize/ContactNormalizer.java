@@ -2,7 +2,8 @@ package com.telcobright.party.v2.contacts.internal.normalize;
 
 import com.telcobright.party.v2.contacts.publishes.ContactEvent;
 import com.telcobright.party.v2.contacts.publishes.ContactEvent.ContactCard;
-import com.telcobright.party.v2.contacts.spi.ContactDedupeStore;
+import com.telcobright.party.v2.contacts.spi.ContactEntryStore;
+import com.telcobright.party.v2.contacts.spi.ContactEntryStore.Entry;
 import com.telcobright.party.v2.contacts.spi.ContactEventPublisher;
 import com.telcobright.party.v2.contacts.spi.ContactSource;
 import com.telcobright.party.v2.contacts.spi.Handle;
@@ -16,62 +17,64 @@ import java.util.Optional;
 
 /**
  * The ONE funnel every contact change passes through: clean the handles,
- * resolve them to a global person, and emit a single canonical contact event
- * on the owner's feed. Idempotent — re-ingesting unchanged content emits
- * nothing, and the owner's version advances only on a real change. Every
- * fan-in producer (phone-book import, manual add, re-resolution on join) calls
- * this; none publishes its own event.
+ * resolve them to a global person, store the entry, and emit a single canonical
+ * contact event on the owner's feed. Idempotent — re-ingesting unchanged content
+ * stores nothing and emits nothing, and the owner's version advances only on a
+ * real change. Every fan-in producer (phone-book import, manual add,
+ * re-resolution on join) calls this; none publishes its own event.
  */
 @ApplicationScoped
 public class ContactNormalizer {
 
-    private static final String DELETED = "DELETED";
-
     private final PartyDirectory directory;
     private final ContactEventPublisher publisher;
-    private final ContactDedupeStore dedupe;
+    private final ContactEntryStore entries;
 
     public ContactNormalizer(PartyDirectory directory, ContactEventPublisher publisher,
-                             ContactDedupeStore dedupe) {
+                             ContactEntryStore entries) {
         this.directory = directory;
         this.publisher = publisher;
-        this.dedupe = dedupe;
+        this.entries = entries;
     }
 
+    /** The outcome of an ingest: the entry's stable id, its version, and whether it changed. */
+    public record IngestResult(String contactId, long version, boolean changed) {}
+
     /**
-     * Normalize one raw contact, resolve its handles, emit ONE upsert.
-     * @return the new version, or empty when the entry was skipped (no usable
-     *         handle) or unchanged (idempotent).
+     * Normalize one raw contact, resolve its handles, store + emit ONE upsert.
+     * @return the result, or empty when the entry had no usable handle (phone/email).
      */
-    public Optional<Long> ingest(String ownerPersonId, RawContact raw, ContactSource source) {
+    public Optional<IngestResult> ingest(String ownerPersonId, RawContact raw, ContactSource source) {
         List<Handle> handles = HandleNormalizer.normalize(raw.rawHandles());
         if (handles.isEmpty()) return Optional.empty();
         String personId = resolvePersonId(handles);
-        ContactCard card = new ContactCard(raw.name(), handles, raw.petname(), raw.groups());
-        return publishUpsert(ownerPersonId, ContactHashing.contactId(handles), personId, source, card);
+        ContactCard card = new ContactCard(personId, raw.name(), handles,
+                raw.petname(), raw.groups(), raw.photo());
+        return Optional.of(applyUpsert(ownerPersonId, ContactHashing.contactId(handles), personId, source, card));
     }
 
-    /** Tombstone one entry. Idempotent — a second delete emits nothing. */
+    /** Tombstone one entry. Idempotent — a second delete stores nothing and emits nothing. */
     public Optional<Long> remove(String ownerPersonId, String contactId, ContactSource source) {
-        if (DELETED.equals(dedupe.lastHash(ownerPersonId, contactId).orElse(null))) {
-            return Optional.empty();
-        }
-        long version = dedupe.commit(ownerPersonId, contactId, DELETED);
+        Optional<Entry> existing = entries.find(ownerPersonId, contactId);
+        if (existing.isEmpty() || existing.get().deleted()) return Optional.empty();
+        long version = entries.tombstone(ownerPersonId, contactId);
         publisher.publish(ownerPersonId, ContactEvent.delete(ownerPersonId, contactId, source.wire(), version));
         return Optional.of(version);
     }
 
     // ── named steps ───────────────────────────────────────────────────────
 
-    private Optional<Long> publishUpsert(String owner, String contactId, String personId,
-                                         ContactSource source, ContactCard card) {
-        String hash = ContactHashing.contentHash(card, personId);
-        if (hash.equals(dedupe.lastHash(owner, contactId).orElse(null))) {
-            return Optional.empty();   // unchanged — idempotent skip
+    private IngestResult applyUpsert(String owner, String contactId, String personId,
+                                     ContactSource source, ContactCard card) {
+        String hash = ContactHashing.contentHash(card);
+        Optional<Entry> existing = entries.find(owner, contactId);
+        if (existing.isPresent() && !existing.get().deleted()
+                && hash.equals(existing.get().contentHash())) {
+            return new IngestResult(contactId, existing.get().version(), false);   // unchanged
         }
-        long version = dedupe.commit(owner, contactId, hash);
+        long version = entries.upsert(owner, contactId, hash, personId, card);
         publisher.publish(owner, ContactEvent.upsert(owner, contactId, personId, source.wire(), version, card));
-        return Optional.of(version);
+        return new IngestResult(contactId, version, true);
     }
 
     /** First handle that resolves to a user wins; null = a non-user entry (kept for invite). */

@@ -24,11 +24,17 @@ public record ContactEvent(String type, String ownerPersonId, String contactId,
 
     /**
      * The saved contact, JSContact (RFC 9553) field names — OUR payload schema
-     * only, not the JMAP protocol. {@code petname} is the owner's private name
-     * (client-precedence on merge).
+     * only, not the JMAP protocol (frozen shape, architect 2026-06-14).
+     *
+     * <ul>
+     *   <li>{@code uid} = the global person key (a JSContact uid); equals the
+     *       event's {@code personId}, or null for a non-user entry.</li>
+     *   <li>{@code petname} = the owner's private name (client-precedence on merge).</li>
+     *   <li>{@code photo} = an optional avatar reference; null when unknown.</li>
+     * </ul>
      */
-    public record ContactCard(String name, List<Handle> handles, String petname,
-                              List<String> groups) {}
+    public record ContactCard(String uid, String name, List<Handle> handles, String petname,
+                              List<String> groups, String photo) {}
 
     public static ContactEvent upsert(String ownerPersonId, String contactId, String personId,
                                       String source, long version, ContactCard card) {

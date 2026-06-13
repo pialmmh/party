@@ -1,0 +1,62 @@
+package com.telcobright.party.v2.testkit;
+
+import com.telcobright.party.v2.contacts.publishes.ContactEvent.ContactCard;
+import com.telcobright.party.v2.contacts.spi.ContactEntryStore;
+
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+
+/** In-memory ContactEntryStore for unit tests — same idempotency/version/snapshot contract. */
+public final class InMemoryContactEntryStore implements ContactEntryStore {
+
+    private record Stored(String hash, long version, String personId, ContactCard card, boolean deleted) {}
+
+    private final Map<String, Stored> byEntry = new ConcurrentHashMap<>();   // owner|contactId
+    private final Map<String, AtomicLong> versionByOwner = new ConcurrentHashMap<>();
+
+    @Override
+    public Optional<Entry> find(String ownerPersonId, String contactId) {
+        Stored s = byEntry.get(key(ownerPersonId, contactId));
+        return s == null ? Optional.empty() : Optional.of(new Entry(s.hash(), s.version(), s.deleted()));
+    }
+
+    @Override
+    public long upsert(String ownerPersonId, String contactId, String contentHash,
+                       String personId, ContactCard card) {
+        long version = nextVersion(ownerPersonId);
+        byEntry.put(key(ownerPersonId, contactId), new Stored(contentHash, version, personId, card, false));
+        return version;
+    }
+
+    @Override
+    public long tombstone(String ownerPersonId, String contactId) {
+        long version = nextVersion(ownerPersonId);
+        byEntry.put(key(ownerPersonId, contactId), new Stored("DELETED", version, null, null, true));
+        return version;
+    }
+
+    @Override
+    public Snapshot snapshot(String ownerPersonId) {
+        String prefix = ownerPersonId + "|";
+        List<SnapshotRow> rows = byEntry.entrySet().stream()
+                .filter(e -> e.getKey().startsWith(prefix) && !e.getValue().deleted())
+                .map(e -> new SnapshotRow(e.getKey().substring(prefix.length()),
+                        e.getValue().version(), e.getValue().personId(), e.getValue().card()))
+                .sorted(Comparator.comparing(SnapshotRow::contactId))
+                .toList();
+        long cursor = versionByOwner.getOrDefault(ownerPersonId, new AtomicLong()).get();
+        return new Snapshot(rows, cursor);
+    }
+
+    private long nextVersion(String ownerPersonId) {
+        return versionByOwner.computeIfAbsent(ownerPersonId, o -> new AtomicLong()).incrementAndGet();
+    }
+
+    private static String key(String ownerPersonId, String contactId) {
+        return ownerPersonId + "|" + contactId;
+    }
+}
