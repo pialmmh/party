@@ -55,6 +55,13 @@
             <artifactId>quarkus-jdbc-mysql</artifactId>
         </dependency>
 
+        <!-- NATS JetStream — the per-account contact-event feed (SL_CONTACTS) -->
+        <dependency>
+            <groupId>io.nats</groupId>
+            <artifactId>jnats</artifactId>
+            <version>2.20.5</version>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>io.quarkus</groupId>

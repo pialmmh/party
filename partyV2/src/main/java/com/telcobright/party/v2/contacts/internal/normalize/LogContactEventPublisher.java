@@ -2,16 +2,13 @@ package com.telcobright.party.v2.contacts.internal.normalize;
 
 import com.telcobright.party.v2.contacts.publishes.ContactEvent;
 import com.telcobright.party.v2.contacts.spi.ContactEventPublisher;
-import jakarta.enterprise.context.ApplicationScoped;
 import org.jboss.logging.Logger;
 
 /**
- * Dev default publisher — logs the event at debug (RULE ONE: never log
- * per-event at info). It stands in until the NATS JetStream adapter lands, once
- * the architect confirms the per-account subject; it then becomes the non-prod
- * fallback.
+ * Dev publisher — logs the event at debug (RULE ONE: never log per-event at
+ * info). Selected by ContactPublisherProvider when the NATS feed is disabled;
+ * constructed directly (not a CDI bean), so it carries no scope annotation.
  */
-@ApplicationScoped
 public class LogContactEventPublisher implements ContactEventPublisher {
 
     private static final Logger LOG = Logger.getLogger(LogContactEventPublisher.class);
