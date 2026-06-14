@@ -61,6 +61,7 @@ class ContactFeedResourceTest {
         res.add(null, OWNER_E164, add("Bob", "+8801711000002"));
 
         SnapshotResponse snap = res.snapshot(null, OWNER_E164);
+        assertEquals("p:7", snap.owner());                 // device learns its own personId for the feed subscription
         assertEquals(2, snap.contacts().size());
         assertEquals(2L, snap.cursor());
         assertEquals("Alice", snap.contacts().get(0).fullName());

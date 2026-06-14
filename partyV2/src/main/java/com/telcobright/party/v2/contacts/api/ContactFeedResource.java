@@ -52,7 +52,7 @@ public class ContactFeedResource {
                                String uid, String fullName, String label, String note,
                                List<Handle> handles) {}
 
-    public record SnapshotResponse(List<SnapshotCard> contacts, long cursor) {}
+    public record SnapshotResponse(String owner, List<SnapshotCard> contacts, long cursor) {}
 
     @POST
     @Path("/entry")
@@ -71,9 +71,11 @@ public class ContactFeedResource {
     @Path("/snapshot")
     public SnapshotResponse snapshot(@HeaderParam("Authorization") String auth,
                                      @HeaderParam("X-SL-Account") String devAccount) {
-        Snapshot snap = entries.snapshot(ownerPersonId(auth, devAccount));
+        String me = ownerPersonId(auth, devAccount);
+        Snapshot snap = entries.snapshot(me);
         List<SnapshotCard> contacts = snap.rows().stream().map(ContactFeedResource::toSnapshotCard).toList();
-        return new SnapshotResponse(contacts, snap.cursor());
+        // owner = the device's own personId, so it can then subscribe its live feed sl.contacts.<owner>
+        return new SnapshotResponse(me, contacts, snap.cursor());
     }
 
     private static SnapshotCard toSnapshotCard(ContactEntryStore.SnapshotRow row) {
