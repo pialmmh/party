@@ -2,6 +2,7 @@ package com.telcobright.party.v2.contacts.internal.normalize;
 
 import com.telcobright.party.v2.contacts.spi.Handle;
 import com.telcobright.party.v2.contacts.spi.PartyDirectory;
+import com.telcobright.party.v2.model.PersonId;
 import com.telcobright.party.v2.spi.FacadeDirectory;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -25,11 +26,6 @@ public class OdooPartyDirectory implements PartyDirectory {
         if (!handle.isPhone()) return Optional.empty();
         return facades.findByE164(handle.value())
                 .filter(facade -> "active".equals(facade.status()))
-                .map(facade -> new PersonRef(personIdOf(facade.partnerId()), facade.displayName()));
-    }
-
-    /** Dev mapping: the Odoo partner is the person. A real UUID column lands later. */
-    private static String personIdOf(long partnerId) {
-        return "p:" + partnerId;
+                .map(facade -> new PersonRef(PersonId.of(facade.partnerId()), facade.displayName()));
     }
 }

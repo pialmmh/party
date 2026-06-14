@@ -1,6 +1,7 @@
 package com.telcobright.party.v2.registration.internal;
 
 import com.telcobright.party.v2.model.E164;
+import com.telcobright.party.v2.model.PersonId;
 import com.telcobright.party.v2.model.ProviderException;
 import com.telcobright.party.v2.spi.FacadeDirectory;
 import com.telcobright.party.v2.registration.publishes.DeviceRevoked;
@@ -64,7 +65,7 @@ public class RegistrationService {
         FacadeDirectory.Facade facade = provisionActiveFacade(e164);
         requireEntitlement(facade.partnerId(), e164);
         String refreshToken = activateDevice(facade, deviceId);
-        String jwt = minter.mint(facade.jid(), deviceId);
+        String jwt = minter.mint(facade.jid(), deviceId, PersonId.of(facade.partnerId()));
         events.emit(new SubscriberProvisioned(facade.partnerId(), facade.e164(), facade.jid(), deviceId));
         return new VerifiedDevice(facade.jid(), jwt, refreshToken, facade.displayName(),
                 cfg.xmpp().domain(), cfg.xmpp().host(), cfg.xmpp().port());
@@ -75,7 +76,7 @@ public class RegistrationService {
         requireActiveNotStale(row);
         requireEntitlement(row.partnerId(), row.e164());
         String next = rotateRefreshToken(row);
-        String jwt = minter.mint(jidOf(row.e164()), row.deviceId());
+        String jwt = minter.mint(jidOf(row.e164()), row.deviceId(), PersonId.of(row.partnerId()));
         return new RefreshedTokens(jwt, next);
     }
 

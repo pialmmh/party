@@ -33,11 +33,12 @@ public class HmacTokenMinter implements TokenMinter {
     @Inject Clock clock;
 
     @Override
-    public String mint(String jid, String deviceId) {
+    public String mint(String jid, String deviceId, String personId) {
         long now = clock.instant().getEpochSecond();
         Map<String, Object> claims = new LinkedHashMap<>();
         claims.put("jid", jid);
         claims.put("device_id", deviceId);
+        claims.put("person_id", personId);
         claims.put("iss", cfg.jwt().issuer());
         claims.put("iat", now);
         claims.put("exp", now + cfg.jwt().ttlSeconds());

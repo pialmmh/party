@@ -9,6 +9,11 @@ package com.telcobright.party.v2.registration.spi;
  */
 public interface TokenMinter {
 
-    /** @return a signed JWT with claims {@code jid}, {@code device_id}, {@code exp}. */
-    String mint(String jid, String deviceId);
+    /**
+     * @param personId the owner's global person key (the {@code person_id} claim) —
+     *                 lets the sync-proxy derive the device's contacts feed.
+     * @return a signed JWT with claims {@code jid}, {@code device_id},
+     *         {@code person_id}, {@code exp}.
+     */
+    String mint(String jid, String deviceId, String personId);
 }

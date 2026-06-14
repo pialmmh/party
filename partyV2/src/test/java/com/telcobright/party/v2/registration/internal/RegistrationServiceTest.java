@@ -113,7 +113,7 @@ class RegistrationServiceTest {
         Beans.set(service, "devices", devices);
         Beans.set(service, "minter",
                 (com.telcobright.party.v2.registration.spi.TokenMinter)
-                        (jid, deviceId) -> "jwt:" + jid + ":" + deviceId);
+                        (jid, deviceId, personId) -> "jwt:" + jid + ":" + deviceId + ":" + personId);
         Beans.set(service, "sessions",
                 (com.telcobright.party.v2.registration.spi.SessionKiller)
                         (user, host, resource) -> kicks.add(new Kick(user, host, resource)));
@@ -130,7 +130,7 @@ class RegistrationServiceTest {
         RegistrationService.VerifiedDevice v = service.verifyOtp(token, "123456", "device-A-0001");
 
         assertEquals("8801711000001@localhost", v.jid());
-        assertEquals("jwt:8801711000001@localhost:device-A-0001", v.xmppCredential());
+        assertEquals("jwt:8801711000001@localhost:device-A-0001:p:101", v.xmppCredential());  // personId flows into mint
         assertNotNull(v.refreshToken());
 
         DeviceRow row = devices.rows.get("device-A-0001");

@@ -49,18 +49,22 @@ class JwtRoundTripTest {
         JwtSharedKey key = keyFor("0123456789abcdef0123456789abcdef");
         TestClock clock = TestClock.at("2026-06-11T10:00:00Z");
         String jwt = minter(key, new TestRegistrationConfig(), clock)
-                .mint("8801711000001@localhost", "device-A-0001");
+                .mint("8801711000001@localhost", "device-A-0001", "p:42");
 
         DeviceTokens.DeviceClaims claims = verifier(key, clock).verify(jwt).orElseThrow();
         assertEquals("8801711000001@localhost", claims.jid());
         assertEquals("device-A-0001", claims.deviceId());
+
+        String payload = new String(java.util.Base64.getUrlDecoder().decode(jwt.split("\\.")[1]),
+                java.nio.charset.StandardCharsets.UTF_8);
+        assertTrue(payload.contains("\"person_id\":\"p:42\""), "person_id claim present: " + payload);
     }
 
     @Test
     void tamperedSignature_isRejected() throws Exception {
         JwtSharedKey key = keyFor("0123456789abcdef0123456789abcdef");
         TestClock clock = TestClock.at("2026-06-11T10:00:00Z");
-        String jwt = minter(key, new TestRegistrationConfig(), clock).mint("u@localhost", "device-A-0001");
+        String jwt = minter(key, new TestRegistrationConfig(), clock).mint("u@localhost", "device-A-0001", "p:42");
         String bad = jwt.substring(0, jwt.length() - 2) + (jwt.endsWith("AA") ? "BB" : "AA");
         assertTrue(verifier(key, clock).verify(bad).isEmpty());
     }
@@ -71,7 +75,7 @@ class JwtRoundTripTest {
         TestRegistrationConfig cfg = new TestRegistrationConfig();
         cfg.jwtTtlSeconds = 900;
         TestClock clock = TestClock.at("2026-06-11T10:00:00Z");
-        String jwt = minter(key, cfg, clock).mint("u@localhost", "device-A-0001");
+        String jwt = minter(key, cfg, clock).mint("u@localhost", "device-A-0001", "p:42");
 
         DeviceTokens v = verifier(key, clock);
         assertTrue(v.verify(jwt).isPresent(), "fresh token verifies");
@@ -84,6 +88,6 @@ class JwtRoundTripTest {
         JwtSharedKey key = keyFor("too-short");
         TestClock clock = TestClock.at("2026-06-11T10:00:00Z");
         HmacTokenMinter m = minter(key, new TestRegistrationConfig(), clock);
-        assertThrows(IllegalStateException.class, () -> m.mint("u@localhost", "device-A-0001"));
+        assertThrows(IllegalStateException.class, () -> m.mint("u@localhost", "device-A-0001", "p:42"));
     }
 }
