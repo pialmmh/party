@@ -1,7 +1,7 @@
 package com.telcobright.party.v2.contacts.internal.store;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.telcobright.party.v2.contacts.publishes.ContactEvent.ContactCard;
+import com.telcobright.party.v2.contacts.publishes.ContactCard;
 import com.telcobright.party.v2.contacts.spi.ContactEntryStore.Entry;
 import com.telcobright.party.v2.contacts.spi.ContactEntryStore.Snapshot;
 import com.telcobright.party.v2.contacts.spi.Handle;
@@ -25,8 +25,8 @@ class JdbcContactEntryStoreSqlTest {
 
     private JdbcContactEntryStore store;
 
-    private static ContactCard card(String uid, String name, String tel) {
-        return new ContactCard(uid, name, List.of(Handle.tel(tel)), null, List.of(), null);
+    private static ContactCard card(String uid, String fullName, String tel) {
+        return new ContactCard(uid, fullName, null, null, List.of(Handle.phone(tel)));
     }
 
     @BeforeEach
@@ -41,16 +41,16 @@ class JdbcContactEntryStoreSqlTest {
 
     @Test
     void versionsAreMonotonicPerOwnerAndIndependentAcrossOwners() {
-        assertEquals(1, store.upsert(OWNER, "c1", "h1", "p:42", card("p:42", "Alice", "+8801711000001")));
-        assertEquals(2, store.upsert(OWNER, "c2", "h2", null, card(null, "Stranger", "+8801799999999")));
-        assertEquals(1, store.upsert("p:7002", "c1", "h1", null, card(null, "Other", "+8801711000003")));
+        assertEquals(1, store.upsert(OWNER, "c1", "h1", "p:42", "phonebook", card("p:42", "Alice", "+8801711000001")));
+        assertEquals(2, store.upsert(OWNER, "c2", "h2", null, "phonebook", card(null, "Stranger", "+8801799999999")));
+        assertEquals(1, store.upsert("p:7002", "c1", "h1", null, "manual", card(null, "Other", "+8801711000003")));
 
         assertEquals(2, store.snapshot(OWNER).cursor());
     }
 
     @Test
     void findReturnsHashAndVersionAndDeletedState() {
-        store.upsert(OWNER, "c1", "hashA", "p:42", card("p:42", "Alice", "+8801711000001"));
+        store.upsert(OWNER, "c1", "hashA", "p:42", "phonebook", card("p:42", "Alice", "+8801711000001"));
 
         Entry e = store.find(OWNER, "c1").orElseThrow();
         assertEquals("hashA", e.contentHash());
@@ -61,8 +61,8 @@ class JdbcContactEntryStoreSqlTest {
 
     @Test
     void upsertUpdatesInPlaceWithANewVersion() {
-        store.upsert(OWNER, "c1", "hashA", "p:42", card("p:42", "Alice", "+8801711000001"));
-        long v2 = store.upsert(OWNER, "c1", "hashB", "p:42", card("p:42", "Alice Smith", "+8801711000001"));
+        store.upsert(OWNER, "c1", "hashA", "p:42", "phonebook", card("p:42", "Alice", "+8801711000001"));
+        long v2 = store.upsert(OWNER, "c1", "hashB", "p:42", "manual", card("p:42", "Alice Smith", "+8801711000001"));
 
         assertEquals(2, v2);
         assertEquals("hashB", store.find(OWNER, "c1").orElseThrow().contentHash());
@@ -70,15 +70,16 @@ class JdbcContactEntryStoreSqlTest {
     }
 
     @Test
-    void snapshotReturnsCurrentCardsAndCursor() {
-        store.upsert(OWNER, "c1", "h1", "p:42", card("p:42", "Alice", "+8801711000001"));
-        store.upsert(OWNER, "c2", "h2", null, card(null, "Bob", "+8801711000002"));
+    void snapshotReturnsCurrentCardsWithSourceAndCursor() {
+        store.upsert(OWNER, "c1", "h1", "p:42", "phonebook", card("p:42", "Alice", "+8801711000001"));
+        store.upsert(OWNER, "c2", "h2", null, "manual", card(null, "Bob", "+8801711000002"));
 
         Snapshot snap = store.snapshot(OWNER);
         assertEquals(2, snap.rows().size());
         assertEquals(2, snap.cursor());
         assertEquals("c1", snap.rows().get(0).contactId());     // ordered by contact_id
-        assertEquals("Alice", snap.rows().get(0).card().name());
+        assertEquals("Alice", snap.rows().get(0).card().fullName());
+        assertEquals("phonebook", snap.rows().get(0).source());
         assertEquals("+8801711000001", snap.rows().get(0).card().handles().get(0).value());
         assertEquals("p:42", snap.rows().get(0).personId());
         assertNull(snap.rows().get(1).personId());              // Bob is a non-user
@@ -86,7 +87,7 @@ class JdbcContactEntryStoreSqlTest {
 
     @Test
     void tombstoneHidesFromSnapshotButAdvancesCursor() {
-        store.upsert(OWNER, "c1", "h1", "p:42", card("p:42", "Alice", "+8801711000001"));
+        store.upsert(OWNER, "c1", "h1", "p:42", "phonebook", card("p:42", "Alice", "+8801711000001"));
         long deletedVersion = store.tombstone(OWNER, "c1");
 
         assertEquals(2, deletedVersion);
@@ -98,10 +99,9 @@ class JdbcContactEntryStoreSqlTest {
 
     @Test
     void cardWithEveryFieldRoundTripsThroughJson() {
-        ContactCard full = new ContactCard("p:42", "Alice", List.of(
-                Handle.tel("+8801711000001"), Handle.email("alice@example.com")),
-                "Ali", List.of("family", "vip"), "media:photo123");
-        store.upsert(OWNER, "c1", "h1", "p:42", full);
+        ContactCard full = new ContactCard("p:42", "Alice", "Ali", "a note", List.of(
+                Handle.phone("+8801711000001"), Handle.email("alice@example.com")));
+        store.upsert(OWNER, "c1", "h1", "p:42", "manual", full);
 
         ContactCard back = store.snapshot(OWNER).rows().get(0).card();
         assertEquals(full, back);                               // record equality = every field survived

@@ -1,6 +1,6 @@
 package com.telcobright.party.v2.testkit;
 
-import com.telcobright.party.v2.contacts.publishes.ContactEvent.ContactCard;
+import com.telcobright.party.v2.contacts.publishes.ContactCard;
 import com.telcobright.party.v2.contacts.spi.ContactEntryStore;
 
 import java.util.Comparator;
@@ -13,7 +13,8 @@ import java.util.concurrent.atomic.AtomicLong;
 /** In-memory ContactEntryStore for unit tests — same idempotency/version/snapshot contract. */
 public final class InMemoryContactEntryStore implements ContactEntryStore {
 
-    private record Stored(String hash, long version, String personId, ContactCard card, boolean deleted) {}
+    private record Stored(String hash, long version, String personId, String source,
+                          ContactCard card, boolean deleted) {}
 
     private final Map<String, Stored> byEntry = new ConcurrentHashMap<>();   // owner|contactId
     private final Map<String, AtomicLong> versionByOwner = new ConcurrentHashMap<>();
@@ -26,16 +27,16 @@ public final class InMemoryContactEntryStore implements ContactEntryStore {
 
     @Override
     public long upsert(String ownerPersonId, String contactId, String contentHash,
-                       String personId, ContactCard card) {
+                       String personId, String source, ContactCard card) {
         long version = nextVersion(ownerPersonId);
-        byEntry.put(key(ownerPersonId, contactId), new Stored(contentHash, version, personId, card, false));
+        byEntry.put(key(ownerPersonId, contactId), new Stored(contentHash, version, personId, source, card, false));
         return version;
     }
 
     @Override
     public long tombstone(String ownerPersonId, String contactId) {
         long version = nextVersion(ownerPersonId);
-        byEntry.put(key(ownerPersonId, contactId), new Stored("DELETED", version, null, null, true));
+        byEntry.put(key(ownerPersonId, contactId), new Stored("DELETED", version, null, null, null, true));
         return version;
     }
 
@@ -44,8 +45,8 @@ public final class InMemoryContactEntryStore implements ContactEntryStore {
         String prefix = ownerPersonId + "|";
         List<SnapshotRow> rows = byEntry.entrySet().stream()
                 .filter(e -> e.getKey().startsWith(prefix) && !e.getValue().deleted())
-                .map(e -> new SnapshotRow(e.getKey().substring(prefix.length()),
-                        e.getValue().version(), e.getValue().personId(), e.getValue().card()))
+                .map(e -> new SnapshotRow(e.getKey().substring(prefix.length()), e.getValue().version(),
+                        e.getValue().personId(), e.getValue().source(), e.getValue().card()))
                 .sorted(Comparator.comparing(SnapshotRow::contactId))
                 .toList();
         long cursor = versionByOwner.getOrDefault(ownerPersonId, new AtomicLong()).get();

@@ -22,7 +22,7 @@ public class OdooPartyDirectory implements PartyDirectory {
 
     @Override
     public Optional<PersonRef> resolve(Handle handle) {
-        if (!handle.isTel()) return Optional.empty();
+        if (!handle.isPhone()) return Optional.empty();
         return facades.findByE164(handle.value())
                 .filter(facade -> "active".equals(facade.status()))
                 .map(facade -> new PersonRef(personIdOf(facade.partnerId()), facade.displayName()));

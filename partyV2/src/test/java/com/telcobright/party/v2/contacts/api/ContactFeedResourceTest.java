@@ -41,8 +41,8 @@ class ContactFeedResourceTest {
         return res;
     }
 
-    private static AddContactRequest add(String name, String handle) {
-        return new AddContactRequest(name, List.of(handle), null, null, null);
+    private static AddContactRequest add(String fullName, String handle) {
+        return new AddContactRequest(fullName, List.of(handle), null, null);
     }
 
     @Test
@@ -55,7 +55,7 @@ class ContactFeedResourceTest {
     }
 
     @Test
-    void snapshotReturnsWhatWasAdded() {
+    void snapshotReturnsFlattenedCardsWithMetadata() {
         ContactFeedResource res = resource();
         res.add(null, OWNER_E164, add("Alice", "+8801711000001"));
         res.add(null, OWNER_E164, add("Bob", "+8801711000002"));
@@ -63,6 +63,9 @@ class ContactFeedResourceTest {
         SnapshotResponse snap = res.snapshot(null, OWNER_E164);
         assertEquals(2, snap.contacts().size());
         assertEquals(2L, snap.cursor());
+        assertEquals("Alice", snap.contacts().get(0).fullName());
+        assertEquals("manual", snap.contacts().get(0).source());
+        assertEquals("phone", snap.contacts().get(0).handles().get(0).kind());
     }
 
     @Test

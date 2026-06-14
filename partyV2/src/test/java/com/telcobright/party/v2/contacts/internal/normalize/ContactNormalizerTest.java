@@ -28,8 +28,8 @@ class ContactNormalizerTest {
     private final InMemoryContactEntryStore entries = new InMemoryContactEntryStore();
     private final ContactNormalizer normalizer = new ContactNormalizer(directory, publisher, entries);
 
-    private static RawContact raw(String name, String... handles) {
-        return RawContact.of(name, List.of(handles));
+    private static RawContact raw(String fullName, String... handles) {
+        return RawContact.of(fullName, List.of(handles));
     }
 
     @Test
@@ -43,12 +43,13 @@ class ContactNormalizerTest {
         assertEquals(1, publisher.events.size());
         ContactEvent e = publisher.last();
         assertEquals(ContactEvent.UPSERT, e.type());
-        assertEquals("p:1", e.ownerPersonId());
         assertEquals("p:42", e.personId());
         assertEquals("phonebook", e.source());
-        assertEquals("Alice", e.card().name());
+        assertEquals("Alice", e.card().fullName());
         assertEquals("p:42", e.card().uid());        // card uid mirrors the resolved person
         assertEquals(1, e.card().handles().size());
+        assertEquals("phone", e.card().handles().get(0).kind());
+        assertEquals("p:1", publisher.owners.get(0));   // owner travels with publish, not in the body
     }
 
     @Test
@@ -73,18 +74,18 @@ class ContactNormalizerTest {
     }
 
     @Test
-    void changedPetnameBumpsVersionButKeepsTheSameContactId() {
-        RawContact first = new RawContact("Alice", List.of("+8801711000001"), null, null, null);
-        RawContact renamed = new RawContact("Alice", List.of("+8801711000001"), "Ali", null, null);
+    void changedLabelBumpsVersionButKeepsTheSameContactId() {
+        RawContact first = new RawContact("Alice", List.of("+8801711000001"), null, null);
+        RawContact relabeled = new RawContact("Alice", List.of("+8801711000001"), "Ali", null);
 
         IngestResult one = normalizer.ingest("p:1", first, MANUAL).orElseThrow();
-        IngestResult two = normalizer.ingest("p:1", renamed, MANUAL).orElseThrow();
+        IngestResult two = normalizer.ingest("p:1", relabeled, MANUAL).orElseThrow();
 
         assertEquals(1L, one.version());
         assertEquals(2L, two.version());
         assertTrue(two.changed());
         assertEquals(one.contactId(), two.contactId());   // same handles → same entry
-        assertEquals(2, publisher.events.size());
+        assertEquals("Ali", publisher.last().card().label());
     }
 
     @Test

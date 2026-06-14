@@ -24,7 +24,7 @@ class OdooPartyDirectoryTest {
     void activeTelResolvesToPersonId() {
         FakeFacadeDirectory facades = new FakeFacadeDirectory().seed("+8801711000001", "active", "Alice");
 
-        Optional<PersonRef> person = directory(facades).resolve(Handle.tel("+8801711000001"));
+        Optional<PersonRef> person = directory(facades).resolve(Handle.phone("+8801711000001"));
 
         assertTrue(person.isPresent());
         assertEquals("p:101", person.get().personId());   // FakeFacadeDirectory partnerId = 100 + id(1)
@@ -34,12 +34,12 @@ class OdooPartyDirectoryTest {
     @Test
     void suspendedFacadeIsANonUser() {
         FakeFacadeDirectory facades = new FakeFacadeDirectory().seed("+8801711000002", "suspended", "Bob");
-        assertTrue(directory(facades).resolve(Handle.tel("+8801711000002")).isEmpty());
+        assertTrue(directory(facades).resolve(Handle.phone("+8801711000002")).isEmpty());
     }
 
     @Test
     void unknownTelIsANonUser() {
-        assertTrue(directory(new FakeFacadeDirectory()).resolve(Handle.tel("+8801711000009")).isEmpty());
+        assertTrue(directory(new FakeFacadeDirectory()).resolve(Handle.phone("+8801711000009")).isEmpty());
     }
 
     @Test

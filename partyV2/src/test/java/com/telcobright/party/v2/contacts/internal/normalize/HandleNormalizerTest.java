@@ -16,7 +16,7 @@ class HandleNormalizerTest {
     void telNormalizesToE164DespiteFormatting() {
         List<Handle> out = HandleNormalizer.normalize(List.of("+880 1711-000001"));
         assertEquals(1, out.size());
-        assertEquals(Handle.TEL, out.get(0).kind());
+        assertEquals(Handle.PHONE, out.get(0).kind());
         assertEquals("+8801711000001", out.get(0).value());
     }
 

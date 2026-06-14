@@ -1,7 +1,7 @@
 package com.telcobright.party.v2.contacts.internal.normalize;
 
+import com.telcobright.party.v2.contacts.publishes.ContactCard;
 import com.telcobright.party.v2.contacts.publishes.ContactEvent;
-import com.telcobright.party.v2.contacts.publishes.ContactEvent.ContactCard;
 import com.telcobright.party.v2.contacts.spi.ContactEntryStore;
 import com.telcobright.party.v2.contacts.spi.ContactEntryStore.Entry;
 import com.telcobright.party.v2.contacts.spi.ContactEventPublisher;
@@ -48,8 +48,7 @@ public class ContactNormalizer {
         List<Handle> handles = HandleNormalizer.normalize(raw.rawHandles());
         if (handles.isEmpty()) return Optional.empty();
         String personId = resolvePersonId(handles);
-        ContactCard card = new ContactCard(personId, raw.name(), handles,
-                raw.petname(), raw.groups(), raw.photo());
+        ContactCard card = new ContactCard(personId, raw.fullName(), raw.label(), raw.note(), handles);
         return Optional.of(applyUpsert(ownerPersonId, ContactHashing.contactId(handles), personId, source, card));
     }
 
@@ -58,7 +57,7 @@ public class ContactNormalizer {
         Optional<Entry> existing = entries.find(ownerPersonId, contactId);
         if (existing.isEmpty() || existing.get().deleted()) return Optional.empty();
         long version = entries.tombstone(ownerPersonId, contactId);
-        publisher.publish(ownerPersonId, ContactEvent.delete(ownerPersonId, contactId, source.wire(), version));
+        publisher.publish(ownerPersonId, ContactEvent.delete(contactId, source.wire(), version));
         return Optional.of(version);
     }
 
@@ -72,8 +71,8 @@ public class ContactNormalizer {
                 && hash.equals(existing.get().contentHash())) {
             return new IngestResult(contactId, existing.get().version(), false);   // unchanged
         }
-        long version = entries.upsert(owner, contactId, hash, personId, card);
-        publisher.publish(owner, ContactEvent.upsert(owner, contactId, personId, source.wire(), version, card));
+        long version = entries.upsert(owner, contactId, hash, personId, source.wire(), card);
+        publisher.publish(owner, ContactEvent.upsert(contactId, personId, source.wire(), version, card));
         return new IngestResult(contactId, version, true);
     }
 

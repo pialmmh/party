@@ -35,7 +35,7 @@ public final class HandleNormalizer {
         if (raw == null || raw.isBlank()) return null;
         String trimmed = raw.trim();
         try {
-            return Handle.tel(E164.normalize(trimmed));
+            return Handle.phone(E164.normalize(trimmed));
         } catch (IllegalArgumentException notAPhone) {
             // not E.164 — try email next
         }

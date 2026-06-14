@@ -1,7 +1,7 @@
 package com.telcobright.party.v2.contacts.internal.store;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.telcobright.party.v2.contacts.publishes.ContactEvent.ContactCard;
+import com.telcobright.party.v2.contacts.publishes.ContactCard;
 import com.telcobright.party.v2.contacts.spi.ContactEntryStore;
 
 import io.agroal.api.AgroalDataSource;
@@ -36,6 +36,7 @@ public class JdbcContactEntryStore implements ContactEntryStore {
               version         BIGINT      NOT NULL,
               content_hash    VARCHAR(64) NOT NULL,
               person_id       VARCHAR(64) NULL,
+              source          VARCHAR(16) NULL,
               card_json       JSON        NULL,
               deleted         TINYINT(1)  NOT NULL DEFAULT 0,
               created_at      TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -76,10 +77,10 @@ public class JdbcContactEntryStore implements ContactEntryStore {
 
     @Override
     public long upsert(String ownerPersonId, String contactId, String contentHash,
-                       String personId, ContactCard card) {
+                       String personId, String source, ContactCard card) {
         ensureSchema();
         String cardJson = writeCard(card);
-        return withSeqRetry(() -> upsertOnce(ownerPersonId, contactId, contentHash, personId, cardJson));
+        return withSeqRetry(() -> upsertOnce(ownerPersonId, contactId, contentHash, personId, source, cardJson));
     }
 
     @Override
@@ -94,13 +95,14 @@ public class JdbcContactEntryStore implements ContactEntryStore {
         List<SnapshotRow> rows = new ArrayList<>();
         try (Connection c = ds.getConnection()) {
             try (PreparedStatement st = c.prepareStatement(
-                    "SELECT contact_id, version, person_id, card_json FROM contact_entry "
+                    "SELECT contact_id, version, person_id, source, card_json FROM contact_entry "
                             + "WHERE owner_person_id = ? AND deleted = 0 ORDER BY contact_id")) {
                 st.setString(1, ownerPersonId);
                 try (ResultSet rs = st.executeQuery()) {
                     while (rs.next()) {
                         rows.add(new SnapshotRow(rs.getString("contact_id"), rs.getLong("version"),
-                                rs.getString("person_id"), readCard(rs.getString("card_json"))));
+                                rs.getString("person_id"), rs.getString("source"),
+                                readCard(rs.getString("card_json"))));
                     }
                 }
             }
@@ -113,24 +115,26 @@ public class JdbcContactEntryStore implements ContactEntryStore {
     // ── internals ─────────────────────────────────────────────────────────
 
     private long upsertOnce(String owner, String contactId, String hash, String personId,
-                            String cardJson) throws SQLException {
+                            String source, String cardJson) throws SQLException {
         try (Connection c = ds.getConnection()) {
             c.setAutoCommit(false);
             try {
                 long seq = nextSeq(c, owner);
                 try (PreparedStatement st = c.prepareStatement("""
                         INSERT INTO contact_entry
-                          (owner_person_id, contact_id, version, content_hash, person_id, card_json, deleted)
-                        VALUES (?, ?, ?, ?, ?, ?, 0)
+                          (owner_person_id, contact_id, version, content_hash, person_id, source, card_json, deleted)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 0)
                         ON DUPLICATE KEY UPDATE
                           version = VALUES(version), content_hash = VALUES(content_hash),
-                          person_id = VALUES(person_id), card_json = VALUES(card_json), deleted = 0""")) {
+                          person_id = VALUES(person_id), source = VALUES(source),
+                          card_json = VALUES(card_json), deleted = 0""")) {
                     st.setString(1, owner);
                     st.setString(2, contactId);
                     st.setLong(3, seq);
                     st.setString(4, hash);
                     st.setString(5, personId);
-                    st.setString(6, cardJson);
+                    st.setString(6, source);
+                    st.setString(7, cardJson);
                     st.executeUpdate();
                 }
                 c.commit();

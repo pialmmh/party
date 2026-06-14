@@ -4,7 +4,7 @@ import com.telcobright.party.v2.contacts.internal.Denied;
 import com.telcobright.party.v2.contacts.internal.OwnerResolver;
 import com.telcobright.party.v2.contacts.internal.normalize.ContactNormalizer;
 import com.telcobright.party.v2.contacts.internal.normalize.ContactNormalizer.IngestResult;
-import com.telcobright.party.v2.contacts.publishes.ContactEvent.ContactCard;
+import com.telcobright.party.v2.contacts.publishes.ContactCard;
 import com.telcobright.party.v2.contacts.spi.ContactEntryStore;
 import com.telcobright.party.v2.contacts.spi.ContactEntryStore.Snapshot;
 import com.telcobright.party.v2.contacts.spi.ContactSource;
@@ -29,8 +29,8 @@ import java.util.List;
  * initial-sync read. Owner identity = the §2 device JWT (or the dev header),
  * resolved to the owner's personId.
  *
- *   POST /contacts/entry    { name, handles[], petname?, groups?, photo? } -> { contactId, version, changed }
- *   GET  /contacts/snapshot                                                -> { contacts[], cursor }
+ *   POST /contacts/entry    { fullName, handles[], label?, note? } -> { contactId, version, changed }
+ *   GET  /contacts/snapshot                                        -> { contacts[], cursor }
  *   POST /contacts/phonebook  (zip)  -> 202 { jobId }   // 🚧 next slice (async import)
  */
 @Path("/contacts")
@@ -43,14 +43,16 @@ public class ContactFeedResource {
     @Inject OwnerResolver owner;
     @Inject PartyDirectory directory;
 
-    public record AddContactRequest(String name, List<String> handles, String petname,
-                                     List<String> groups, String photo) {}
+    public record AddContactRequest(String fullName, List<String> handles, String label, String note) {}
 
     public record AddContactResponse(String contactId, long version, boolean changed) {}
 
-    public record SnapshotEntry(String contactId, String personId, long version, ContactCard card) {}
+    /** A snapshot element: the canonical card flattened with its entry metadata (architect §8). */
+    public record SnapshotCard(String contactId, String personId, String source, long version,
+                               String uid, String fullName, String label, String note,
+                               List<Handle> handles) {}
 
-    public record SnapshotResponse(List<SnapshotEntry> contacts, long cursor) {}
+    public record SnapshotResponse(List<SnapshotCard> contacts, long cursor) {}
 
     @POST
     @Path("/entry")
@@ -59,7 +61,7 @@ public class ContactFeedResource {
                                   AddContactRequest req) {
         if (req == null) throw Denied.badRequest("missing body");
         String me = ownerPersonId(auth, devAccount);
-        RawContact raw = new RawContact(req.name(), req.handles(), req.petname(), req.groups(), req.photo());
+        RawContact raw = new RawContact(req.fullName(), req.handles(), req.label(), req.note());
         IngestResult result = normalizer.ingest(me, raw, ContactSource.MANUAL)
                 .orElseThrow(() -> Denied.badRequest("no usable handle — give a phone number or an email"));
         return new AddContactResponse(result.contactId(), result.version(), result.changed());
@@ -70,16 +72,20 @@ public class ContactFeedResource {
     public SnapshotResponse snapshot(@HeaderParam("Authorization") String auth,
                                      @HeaderParam("X-SL-Account") String devAccount) {
         Snapshot snap = entries.snapshot(ownerPersonId(auth, devAccount));
-        List<SnapshotEntry> contacts = snap.rows().stream()
-                .map(r -> new SnapshotEntry(r.contactId(), r.personId(), r.version(), r.card()))
-                .toList();
+        List<SnapshotCard> contacts = snap.rows().stream().map(ContactFeedResource::toSnapshotCard).toList();
         return new SnapshotResponse(contacts, snap.cursor());
+    }
+
+    private static SnapshotCard toSnapshotCard(ContactEntryStore.SnapshotRow row) {
+        ContactCard card = row.card();
+        return new SnapshotCard(row.contactId(), row.personId(), row.source(), row.version(),
+                card.uid(), card.fullName(), card.label(), card.note(), card.handles());
     }
 
     /** The owner's E.164 (frozen §6 resolver) → their global personId. */
     private String ownerPersonId(String auth, String devAccount) {
         String e164 = owner.resolve(auth, devAccount);
-        return directory.resolve(Handle.tel(e164))
+        return directory.resolve(Handle.phone(e164))
                 .map(PartyDirectory.PersonRef::personId)
                 .orElseThrow(() -> Denied.unauthorized("owner is not a provisioned person"));
     }
