@@ -25,8 +25,13 @@ JAR="$REPO/partyV2/target/party-v2-0.1.0-SNAPSHOT-runner.jar"
 JDK21_LOCAL=/usr/lib/jvm/java-21-openjdk-amd64
 
 if [ "${1:-}" != "--no-build" ]; then
-  echo "[deploy] building uber-jar under JDK 21"
-  ( cd "$REPO" && JAVA_HOME="$JDK21_LOCAL" mvn -q -pl partyV2 -am -DskipTests package )
+  echo "[deploy] building uber-jar under JDK 21 (dev facade seed ON for this it_vm build)"
+  # -Dsecurelink.devseed.enabled=true is a BUILD property (@IfBuildProperty): it
+  # activates DevSeedFacadeDirectory in THIS jar so contact resolution works before the
+  # real Odoo secure_link.facade addon is installed. A plain `mvn package` (no flag) keeps
+  # the Odoo @DefaultBean — prod-safe.
+  ( cd "$REPO" && JAVA_HOME="$JDK21_LOCAL" mvn -q -pl partyV2 -am -DskipTests package \
+      -Dsecurelink.devseed.enabled=true )
 fi
 [ -f "$JAR" ] || { echo "[deploy] jar not found: $JAR (build first)" >&2; exit 1; }
 
@@ -62,6 +67,12 @@ party.v2.registration.otp.dev-mode=true
 # users against it with their own creds; no admin secret on the login path.
 party.v2.tenants.t1.odoo.base-url=http://10.9.9.7:7170
 party.v2.tenants.t1.odoo.db=platform_dev
+# dev facade seed (the Odoo secure_link.facade addon is not installed in platform_dev
+# yet, so contact owner/match resolution uses these seeded test users). Activated by the
+# build flag above. +8801711111111 = the architect's canonical is-a-user test number;
+# +8801710000001 = a test device owner. Remove once the real Odoo facade addon lands.
+# (Namespace is securelink.* NOT party.v2.* — the latter is a @ConfigMapping root.)
+securelink.devseed.numbers=+8801711111111,+8801710000001
 EOF
 chmod 600 "$CONF"; chown debian:debian "$CONF"
 

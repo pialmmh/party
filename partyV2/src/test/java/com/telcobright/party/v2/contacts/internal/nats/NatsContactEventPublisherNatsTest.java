@@ -30,7 +30,10 @@ class NatsContactEventPublisherNatsTest {
 
     private static final String URL = "nats://10.10.185.1:4222";
     private static final String IT_STREAM = "SL_CONTACTS_IT";
-    private static final String IT_PREFIX = "sl.contacts.it.";
+    // DISJOINT from the live SL_CONTACTS subjects (sl.contacts.>): "sl.contacts.it." sits
+    // UNDER that wildcard, so once the real stream exists JetStream rejects this test stream
+    // as overlapping [10065]. "slit.contacts." shares no prefix token with "sl.contacts.".
+    private static final String IT_PREFIX = "slit.contacts.";
 
     private final ObjectMapper json = new ObjectMapper();
     private NatsContactEventPublisher publisher;

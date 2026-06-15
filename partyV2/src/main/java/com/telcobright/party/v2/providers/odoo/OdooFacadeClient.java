@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.telcobright.party.v2.spi.FacadeDirectory;
 import com.telcobright.party.v2.config.PartyV2Config;
 import com.telcobright.party.v2.model.ProviderException;
+import io.quarkus.arc.DefaultBean;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -18,8 +19,12 @@ import java.util.Optional;
  * secure_link.facade model (the addon stream-b authored in odoo-backend-19)
  * over the existing JSON-RPC client. Runs as the tenant's Odoo admin user —
  * party is a trusted backend.
+ *
+ * <p>{@code @DefaultBean}: the production directory, used unless a non-default
+ * {@link FacadeDirectory} (the dev seed) is enabled for that build.
  */
 @ApplicationScoped
+@DefaultBean
 public class OdooFacadeClient implements FacadeDirectory {
 
     private static final List<String> SUMMARY_FIELDS = List.of("id", "e164", "jid", "status", "partner_id");
