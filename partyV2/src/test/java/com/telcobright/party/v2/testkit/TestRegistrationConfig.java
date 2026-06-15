@@ -28,6 +28,7 @@ public final class TestRegistrationConfig implements RegistrationConfig {
 
     @Override public Jwt jwt() {
         return new Jwt() {
+            @Override public Optional<String> secret() { return Optional.empty(); }
             @Override public Optional<String> secretFile() { return jwtSecretFile; }
             @Override public int ttlSeconds() { return jwtTtlSeconds; }
             @Override public String issuer() { return "party"; }

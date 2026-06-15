@@ -1,0 +1,32 @@
+# party-v2 HOST runtime config — EXAMPLE (committed for documentation only).
+#
+# The REAL file lives ONLY on it_vm at /opt/secure-link/conf/party-v2.properties
+# (chmod 600, never committed), rendered by remote-deploy-v2.sh and pointed at by the
+# unit via -Dquarkus.config.locations.
+#
+# CONFIG SPLIT (why three places):
+#   1) jar application.properties  — the NON-secret vault wiring (quarkus.vault.url,
+#      tls, kv version/mount, secret-config-kv-path, credentials-provider). It MUST be
+#      an early base source: quarkus-vault's VaultConfigSourceFactory runs during config
+#      bootstrap (before -Dquarkus.config.locations is merged) and fetches the HS256 key
+#      then; if the vault wiring is only in this host file, the factory sees no url/auth
+#      and leaves VaultRuntimeConfig null -> NPE. So it is baked into the jar.
+#   2) systemd unit Environment=   — the AppRole role-id + secret-id (the ONLY secrets
+#      that touch the box). Env vars are an early config source, so they reach the
+#      bootstrap fetch. Rendered on-box from OpenBao's seal file; out-of-band, never git:
+#        Environment=QUARKUS_VAULT_AUTHENTICATION_APP_ROLE_ROLE_ID=<role-id>
+#        Environment=QUARKUS_VAULT_AUTHENTICATION_APP_ROLE_SECRET_ID=<secret-id>
+#   3) THIS host file              — env-specific NON-secret runtime only (below).
+#
+# The HS256 key and DB password NEVER appear anywhere on disk — party fetches them
+# from OpenBao at startup via the AppRole.
+
+quarkus.datasource.jdbc.url=jdbc:mysql://10.10.185.1:3306/party_v2?sslMode=DISABLED&serverTimezone=UTC&allowPublicKeyRetrieval=true&connectTimeout=5000&socketTimeout=30000&tcpKeepAlive=true
+party.v2.contacts.nats.enabled=true
+party.v2.contacts.nats.url=nats://10.10.185.1:4222
+party.v2.registration.xmpp.host=10.10.185.1
+party.v2.registration.otp.dev-mode=true
+# tenant t1 -> live Odoo 19 on this box; partyV2 authenticates end users with their
+# own Odoo creds (self-read), so no admin secret is needed on the login path.
+party.v2.tenants.t1.odoo.base-url=http://10.9.9.7:7170
+party.v2.tenants.t1.odoo.db=platform_dev

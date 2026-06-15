@@ -10,6 +10,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -57,7 +58,7 @@ public class TenantRegistry {
                 yield new OdooUserRepoProvider(
                         oc.baseUrl(), oc.db(), oc.timeoutMillis(),
                         oc.adminUser().orElse(""), oc.adminPassword().orElse(""),
-                        oc.entities());
+                        oc.entities().orElse(List.of()));
             }
             case LDAP -> {
                 PartyV2Config.LdapAdapterConfig lc = tc.ldap().orElse(null);

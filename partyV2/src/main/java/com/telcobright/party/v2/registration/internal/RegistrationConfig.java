@@ -37,6 +37,14 @@ public interface RegistrationConfig {
 
     interface Jwt {
         /**
+         * The HS256 key VALUE — PREFERRED over {@link #secretFile()}. Injected from
+         * OpenBao via quarkus-vault ({@code party.v2.registration.jwt.secret=${sljwt.key}}),
+         * so the secret never lands in a file or env var. Optional; falls back to the
+         * file when absent. (Read by {@code JwtSharedKey}.)
+         */
+        Optional<String> secret();
+
+        /**
          * Path to the HS256 shared-key file (same key configured in ejabberd
          * jwt_key — byte-identical, so create it WITHOUT a trailing newline).
          * Never in git. Optional so operators that don't run registration

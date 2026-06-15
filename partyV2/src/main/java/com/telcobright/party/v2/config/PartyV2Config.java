@@ -64,12 +64,14 @@ public interface PartyV2Config {
          * field metadata at startup. The adapter calls ir.model.fields.search_read
          * for each and caches the result for the policy builder UI.
          *
-         * If empty, no introspection runs and the vocabulary endpoint returns nothing.
+         * Optional — absent means no introspection runs and the vocabulary endpoint
+         * returns nothing. Modelled as an Optional list (not {@code @WithDefault("")}):
+         * once the parent {@code Optional<OdooAdapterConfig>} is present, SmallRye does
+         * NOT honor a list default and instead demands the key (SRCFG00014).
          * Introspection requires admin-user + admin-password to be set; otherwise the
          * adapter logs a warning and falls back to names-only entries.
          */
-        @WithDefault("")
-        List<String> entities();
+        Optional<List<String>> entities();
     }
 
     interface LdapAdapterConfig {

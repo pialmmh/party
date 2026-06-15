@@ -62,6 +62,17 @@
             <version>2.20.5</version>
         </dependency>
 
+        <!-- OpenBao (Vault-API compatible) dev secret store: AppRole-read the HS256
+             key + party DB creds at startup. No secret in env/git/scp (secure-link
+             secrets decision, 2026-06-15). On Quarkus 3.15.1 LTS: 4.1.0 (built for
+             3.12) leaves VaultRuntimeConfig null at runtime; 4.2.0 (3.19) records the
+             runtime config correctly here. -->
+        <dependency>
+            <groupId>io.quarkiverse.vault</groupId>
+            <artifactId>quarkus-vault</artifactId>
+            <version>4.2.0</version>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>io.quarkus</groupId>
@@ -72,6 +83,23 @@
 
     <build>
         <plugins>
+            <!-- Augment + package the runnable Quarkus app (was only in pluginManagement,
+                 so `mvn package` produced a thin jar; bind the build goal so it yields the
+                 runnable uber-jar). -->
+            <plugin>
+                <groupId>${quarkus.platform.group-id}</groupId>
+                <artifactId>quarkus-maven-plugin</artifactId>
+                <extensions>true</extensions>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>build</goal>
+                            <goal>generate-code</goal>
+                            <goal>generate-code-tests</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
             <!-- Index this module so Quarkus discovers CDI beans + @ConfigMapping. -->
             <plugin>
                 <groupId>io.smallrye</groupId>
