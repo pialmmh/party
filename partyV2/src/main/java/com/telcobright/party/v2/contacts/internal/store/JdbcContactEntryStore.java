@@ -90,14 +90,19 @@ public class JdbcContactEntryStore implements ContactEntryStore {
     }
 
     @Override
-    public Snapshot snapshot(String ownerPersonId) {
+    public Page snapshotPage(String ownerPersonId, String afterContactId, int limit) {
         ensureSchema();
+        String after = afterContactId == null ? "" : afterContactId;   // all contactIds sort after ""
+        long fetch = (long) limit + 1;                                  // +1 sentinel row reveals a next page
         List<SnapshotRow> rows = new ArrayList<>();
         try (Connection c = ds.getConnection()) {
             try (PreparedStatement st = c.prepareStatement(
                     "SELECT contact_id, version, person_id, source, card_json FROM contact_entry "
-                            + "WHERE owner_person_id = ? AND deleted = 0 ORDER BY contact_id")) {
+                            + "WHERE owner_person_id = ? AND deleted = 0 AND contact_id > ? "
+                            + "ORDER BY contact_id LIMIT ?")) {
                 st.setString(1, ownerPersonId);
+                st.setString(2, after);
+                st.setLong(3, fetch);
                 try (ResultSet rs = st.executeQuery()) {
                     while (rs.next()) {
                         rows.add(new SnapshotRow(rs.getString("contact_id"), rs.getLong("version"),
@@ -106,7 +111,10 @@ public class JdbcContactEntryStore implements ContactEntryStore {
                     }
                 }
             }
-            return new Snapshot(rows, highVersion(c, ownerPersonId));
+            boolean more = rows.size() > limit;
+            if (more) rows = rows.subList(0, limit);
+            String nextCursor = more ? rows.get(rows.size() - 1).contactId() : null;
+            return new Page(List.copyOf(rows), nextCursor, highVersion(c, ownerPersonId));
         } catch (SQLException e) {
             throw new IllegalStateException("contact snapshot failed: " + e.getMessage(), e);
         }

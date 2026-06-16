@@ -6,8 +6,8 @@ import com.telcobright.party.v2.contacts.internal.normalize.ContactNormalizer;
 import com.telcobright.party.v2.contacts.internal.normalize.ContactNormalizer.IngestResult;
 import com.telcobright.party.v2.contacts.publishes.ContactCard;
 import com.telcobright.party.v2.contacts.spi.ContactEntryStore;
-import com.telcobright.party.v2.contacts.spi.ContactEntryStore.Snapshot;
 import com.telcobright.party.v2.contacts.spi.ContactSource;
+import com.telcobright.party.v2.sync.SyncConfig;
 import com.telcobright.party.v2.contacts.spi.Handle;
 import com.telcobright.party.v2.contacts.spi.PartyDirectory;
 import com.telcobright.party.v2.contacts.spi.RawContact;
@@ -35,7 +35,7 @@ import java.util.List;
  *
  *   POST   /contacts/entry    { fullName, handles[], label?, note? } -> { contactId, version, changed }
  *   DELETE /contacts/entry/{contactId}?source=manual|phonebook       -> { contactId, version, changed }  (tombstone)
- *   GET    /contacts/snapshot                                        -> { contacts[], cursor }
+ *   GET    /contacts/snapshot?cursor=&limit=  -> { owner, contacts[], cursor, nextCursor }  (paged at core.sync.batchSize)
  *   POST   /contacts/phonebook  (zip)  -> 202 { jobId }   // 🚧 NOT BUILT (deferred — client bulk wire-format unpinned)
  */
 @Path("/contacts")
@@ -47,6 +47,7 @@ public class ContactFeedResource {
     @Inject ContactEntryStore entries;
     @Inject OwnerResolver owner;
     @Inject PartyDirectory directory;
+    @Inject SyncConfig sync;
 
     public record AddContactRequest(String fullName, List<String> handles, String label, String note) {}
 
@@ -59,7 +60,7 @@ public class ContactFeedResource {
                                String uid, String fullName, String label, String note,
                                List<Handle> handles) {}
 
-    public record SnapshotResponse(String owner, List<SnapshotCard> contacts, long cursor) {}
+    public record SnapshotResponse(String owner, List<SnapshotCard> contacts, long cursor, String nextCursor) {}
 
     @POST
     @Path("/entry")
@@ -77,12 +78,23 @@ public class ContactFeedResource {
     @GET
     @Path("/snapshot")
     public SnapshotResponse snapshot(@HeaderParam("Authorization") String auth,
-                                     @HeaderParam("X-SL-Account") String devAccount) {
+                                     @HeaderParam("X-SL-Account") String devAccount,
+                                     @QueryParam("cursor") String pageCursor,
+                                     @QueryParam("limit") Integer limit) {
         String me = ownerPersonId(auth, devAccount);
-        Snapshot snap = entries.snapshot(me);
-        List<SnapshotCard> contacts = snap.rows().stream().map(ContactFeedResource::toSnapshotCard).toList();
-        // owner = the device's own personId, so it can then subscribe its live feed sl.contacts.<owner>
-        return new SnapshotResponse(me, contacts, snap.cursor());
+        // Paged at core.sync.batchSize (frozen §7): the common ≤batch owner gets one page
+        // (nextCursor=null); a >batch owner pages by passing the previous nextCursor back.
+        ContactEntryStore.Page page = entries.snapshotPage(me, pageCursor, pageSize(limit));
+        List<SnapshotCard> contacts = page.rows().stream().map(ContactFeedResource::toSnapshotCard).toList();
+        // owner = the device's own personId, so it can then subscribe its live feed sl.contacts.<owner>;
+        // cursor = the WS resume seq; nextCursor != null means "more pages — fetch again".
+        return new SnapshotResponse(me, contacts, page.cursor(), page.nextCursor());
+    }
+
+    /** Page size = the requested limit clamped to [1, batchSize]; absent = batchSize (§7). */
+    private int pageSize(Integer requested) {
+        int max = sync.batchSize();
+        return requested == null ? max : Math.max(1, Math.min(requested, max));
     }
 
     @DELETE

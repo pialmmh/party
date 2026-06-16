@@ -23,6 +23,14 @@ public interface ContactEntryStore {
     /** The owner's current book plus the cursor (high version, including tombstones). */
     record Snapshot(List<SnapshotRow> rows, long cursor) {}
 
+    /**
+     * One page of a snapshot (architect §7 — paged at {@code core.sync.batchSize}):
+     * up to {@code limit} rows ordered by contactId, a keyset {@code nextCursor}
+     * (the last row's contactId, or null on the last page), and {@code cursor} —
+     * the owner's high version = the device's WS resume point.
+     */
+    record Page(List<SnapshotRow> rows, String nextCursor, long cursor) {}
+
     Optional<Entry> find(String ownerPersonId, String contactId);
 
     /** Store the card at the owner's NEXT version; clears any tombstone. @return the new version. */
@@ -32,5 +40,16 @@ public interface ContactEntryStore {
     /** Tombstone the entry at the owner's NEXT version (content erased). @return the new version. */
     long tombstone(String ownerPersonId, String contactId);
 
-    Snapshot snapshot(String ownerPersonId);
+    /**
+     * The current (non-tombstoned) book after {@code afterContactId} (null/empty =
+     * first page), at most {@code limit} rows, ordered by contactId — keyset
+     * pagination so a {@code >5000}-contact owner pages by cursor.
+     */
+    Page snapshotPage(String ownerPersonId, String afterContactId, int limit);
+
+    /** The whole book in one shot — back-compat shim over {@link #snapshotPage}. */
+    default Snapshot snapshot(String ownerPersonId) {
+        Page page = snapshotPage(ownerPersonId, null, Integer.MAX_VALUE);
+        return new Snapshot(page.rows(), page.cursor());
+    }
 }
