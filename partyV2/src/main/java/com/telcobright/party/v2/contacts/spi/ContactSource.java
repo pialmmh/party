@@ -20,4 +20,12 @@ public enum ContactSource {
     public String wire() {
         return wire;
     }
+
+    /** Parse the lower-case wire string (the {@code ?source=} param) back to a source. */
+    public static ContactSource from(String wire) {
+        for (ContactSource s : values()) {
+            if (s.wire.equals(wire)) return s;
+        }
+        throw new IllegalArgumentException("unknown contact source: " + wire);
+    }
 }

@@ -2,8 +2,10 @@ package com.telcobright.party.v2.contacts.api;
 
 import com.telcobright.party.v2.contacts.api.ContactFeedResource.AddContactRequest;
 import com.telcobright.party.v2.contacts.api.ContactFeedResource.AddContactResponse;
+import com.telcobright.party.v2.contacts.api.ContactFeedResource.DeleteContactResponse;
 import com.telcobright.party.v2.contacts.api.ContactFeedResource.SnapshotResponse;
 import com.telcobright.party.v2.contacts.internal.ContactsConfig;
+import com.telcobright.party.v2.contacts.publishes.ContactEvent;
 import com.telcobright.party.v2.contacts.internal.OwnerResolver;
 import com.telcobright.party.v2.contacts.internal.normalize.ContactNormalizer;
 import com.telcobright.party.v2.testkit.Beans;
@@ -92,6 +94,32 @@ class ContactFeedResourceTest {
         WebApplicationException ex = assertThrows(WebApplicationException.class,
                 () -> resource().add(null, "+8801799999999", add("Alice", "+8801711000001")));
         assertEquals(401, ex.getResponse().getStatus());   // owner e164 not in the directory
+    }
+
+    @Test
+    void deleteTombstonesEmitsContactDeleteAndIsIdempotent() {
+        ContactFeedResource res = resource();
+        AddContactResponse added = res.add(null, OWNER_E164, add("Alice", "+8801711000001"));
+
+        DeleteContactResponse del = res.delete(null, OWNER_E164, added.contactId(), "manual");
+        assertEquals(added.contactId(), del.contactId());
+        assertTrue(del.changed());
+        assertEquals(2L, del.version());                                    // tombstone bumps the per-owner seq
+        assertEquals(0, res.snapshot(null, OWNER_E164).contacts().size());  // excluded from the active snapshot
+        assertEquals(ContactEvent.DELETE, publisher.last().type());         // ONE contactDelete published
+        assertEquals(added.contactId(), publisher.last().contactId());
+
+        int eventsAfterFirst = publisher.events.size();
+        DeleteContactResponse again = res.delete(null, OWNER_E164, added.contactId(), "manual");
+        assertFalse(again.changed());                                       // idempotent no-op
+        assertEquals(eventsAfterFirst, publisher.events.size());            // emits nothing the second time
+    }
+
+    @Test
+    void deleteWithUnknownSourceIsBadRequest() {
+        WebApplicationException ex = assertThrows(WebApplicationException.class,
+                () -> resource().delete(null, OWNER_E164, "c:anything", "bogus"));
+        assertEquals(400, ex.getResponse().getStatus());
     }
 
     private static ContactsConfig stubConfig() {

@@ -13,11 +13,15 @@ import com.telcobright.party.v2.contacts.spi.PartyDirectory;
 import com.telcobright.party.v2.contacts.spi.RawContact;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DELETE;
+import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 
 import java.util.List;
@@ -29,9 +33,10 @@ import java.util.List;
  * initial-sync read. Owner identity = the §2 device JWT (or the dev header),
  * resolved to the owner's personId.
  *
- *   POST /contacts/entry    { fullName, handles[], label?, note? } -> { contactId, version, changed }
- *   GET  /contacts/snapshot                                        -> { contacts[], cursor }
- *   POST /contacts/phonebook  (zip)  -> 202 { jobId }   // 🚧 next slice (async import)
+ *   POST   /contacts/entry    { fullName, handles[], label?, note? } -> { contactId, version, changed }
+ *   DELETE /contacts/entry/{contactId}?source=manual|phonebook       -> { contactId, version, changed }  (tombstone)
+ *   GET    /contacts/snapshot                                        -> { contacts[], cursor }
+ *   POST   /contacts/phonebook  (zip)  -> 202 { jobId }   // 🚧 NOT BUILT (deferred — client bulk wire-format unpinned)
  */
 @Path("/contacts")
 @Consumes(MediaType.APPLICATION_JSON)
@@ -46,6 +51,8 @@ public class ContactFeedResource {
     public record AddContactRequest(String fullName, List<String> handles, String label, String note) {}
 
     public record AddContactResponse(String contactId, long version, boolean changed) {}
+
+    public record DeleteContactResponse(String contactId, long version, boolean changed) {}
 
     /** A snapshot element: the canonical card flattened with its entry metadata (architect §8). */
     public record SnapshotCard(String contactId, String personId, String source, long version,
@@ -76,6 +83,29 @@ public class ContactFeedResource {
         List<SnapshotCard> contacts = snap.rows().stream().map(ContactFeedResource::toSnapshotCard).toList();
         // owner = the device's own personId, so it can then subscribe its live feed sl.contacts.<owner>
         return new SnapshotResponse(me, contacts, snap.cursor());
+    }
+
+    @DELETE
+    @Path("/entry/{contactId}")
+    public DeleteContactResponse delete(@HeaderParam("Authorization") String auth,
+                                        @HeaderParam("X-SL-Account") String devAccount,
+                                        @PathParam("contactId") String contactId,
+                                        @QueryParam("source") @DefaultValue("manual") String source) {
+        String me = ownerPersonId(auth, devAccount);
+        ContactSource src = parseSource(source);
+        // Idempotent (frozen §8): a missing or already-tombstoned entry stores nothing and emits
+        // nothing -> {changed:false}. A live entry is tombstoned -> ONE contactDelete on SL_CONTACTS.
+        return normalizer.remove(me, contactId, src)
+                .map(version -> new DeleteContactResponse(contactId, version, true))
+                .orElseGet(() -> new DeleteContactResponse(contactId, 0L, false));
+    }
+
+    private static ContactSource parseSource(String source) {
+        try {
+            return ContactSource.from(source);
+        } catch (IllegalArgumentException e) {
+            throw Denied.badRequest("invalid source (use manual|phonebook): " + source);
+        }
     }
 
     private static SnapshotCard toSnapshotCard(ContactEntryStore.SnapshotRow row) {
