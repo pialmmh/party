@@ -59,13 +59,16 @@ class ContactEventWireTest {
     }
 
     @Test
-    void contactUpsertEchoesOriginIdWhenPresent() throws Exception {
+    void contactUpsertEchoesBothServerContactIdAndClientOriginId() throws Exception {
+        // RULING B / stream-d Option B: when the server mints a contactId DISTINCT from the client's
+        // originId, the upsert echoes BOTH — d rekeys its optimistic row (keyed by originId) to contactId.
         ContactCard card = new ContactCard(null, "Alice", null, null, List.of(Handle.phone("+8801711000001")));
-        ContactEvent event = ContactEvent.upsert("c:abc", null, "manual", 3, card, "o:dev-7");
+        ContactEvent event = ContactEvent.upsert("c:server", null, "manual", 3, card, "o:client-7");
 
         JsonNode j = om.readTree(om.writeValueAsString(event));
 
-        assertEquals("o:dev-7", j.get("originId").asText());   // §8 RULING B — echoed for the device to reconcile
+        assertEquals("c:server", j.get("contactId").asText());    // server's durable id (top-level)
+        assertEquals("o:client-7", j.get("originId").asText());   // client's reconcile key, echoed back (top-level)
     }
 
     @Test
