@@ -75,8 +75,8 @@ class ContactNormalizerTest {
 
     @Test
     void changedLabelBumpsVersionButKeepsTheSameContactId() {
-        RawContact first = new RawContact("Alice", List.of("+8801711000001"), null, null);
-        RawContact relabeled = new RawContact("Alice", List.of("+8801711000001"), "Ali", null);
+        RawContact first = new RawContact("Alice", List.of("+8801711000001"), null, null, null);
+        RawContact relabeled = new RawContact("Alice", List.of("+8801711000001"), "Ali", null, null);
 
         IngestResult one = normalizer.ingest("p:1", first, MANUAL).orElseThrow();
         IngestResult two = normalizer.ingest("p:1", relabeled, MANUAL).orElseThrow();
@@ -86,6 +86,23 @@ class ContactNormalizerTest {
         assertTrue(two.changed());
         assertEquals(one.contactId(), two.contactId());   // same handles → same entry
         assertEquals("Ali", publisher.last().card().label());
+    }
+
+    @Test
+    void originIdIsStoredAndEchoedOnTheEventButNotHashed() {
+        directory.user("+8801711000001", "p:42", "Alice");
+        RawContact withKey = new RawContact("Alice", List.of("+8801711000001"), null, null, "o:dev-7");
+
+        IngestResult result = normalizer.ingest("p:1", withKey, MANUAL).orElseThrow();
+
+        assertEquals("o:dev-7", publisher.last().originId());                 // echoed for the device to reconcile
+        assertEquals("o:dev-7", entries.storedOriginId("p:1", result.contactId()));  // persisted on the row
+
+        // a re-add with the SAME content but a DIFFERENT key is still idempotent (originId is not hashed)
+        RawContact sameContentNewKey = new RawContact("Alice", List.of("+8801711000001"), null, null, "o:dev-9");
+        IngestResult again = normalizer.ingest("p:1", sameContentNewKey, MANUAL).orElseThrow();
+        assertFalse(again.changed());
+        assertEquals(1, publisher.events.size());                            // nothing re-published
     }
 
     @Test

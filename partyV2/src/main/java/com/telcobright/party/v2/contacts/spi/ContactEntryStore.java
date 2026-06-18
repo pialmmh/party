@@ -33,9 +33,19 @@ public interface ContactEntryStore {
 
     Optional<Entry> find(String ownerPersonId, String contactId);
 
-    /** Store the card at the owner's NEXT version; clears any tombstone. @return the new version. */
+    /**
+     * Store the card at the owner's NEXT version; clears any tombstone. {@code originId}
+     * = the optional client reconcile key (§8 RULING B), persisted with the row.
+     * @return the new version.
+     */
     long upsert(String ownerPersonId, String contactId, String contentHash, String personId,
-                String source, ContactCard card);
+                String source, ContactCard card, String originId);
+
+    /** Back-compat: upsert with no reconcile key. */
+    default long upsert(String ownerPersonId, String contactId, String contentHash, String personId,
+                        String source, ContactCard card) {
+        return upsert(ownerPersonId, contactId, contentHash, personId, source, card, null);
+    }
 
     /** Tombstone the entry at the owner's NEXT version (content erased). @return the new version. */
     long tombstone(String ownerPersonId, String contactId);

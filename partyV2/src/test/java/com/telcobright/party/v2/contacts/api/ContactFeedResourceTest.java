@@ -51,7 +51,7 @@ class ContactFeedResourceTest {
     }
 
     private static AddContactRequest add(String fullName, String handle) {
-        return new AddContactRequest(fullName, List.of(handle), null, null);
+        return new AddContactRequest(fullName, List.of(handle), null, null, null);
     }
 
     @Test
@@ -61,6 +61,13 @@ class ContactFeedResourceTest {
         assertNotNull(out.contactId());
         assertEquals(1L, out.version());
         assertTrue(out.changed());
+    }
+
+    @Test
+    void originIdInTheRequestBodyIsEchoedOnTheEvent() {
+        AddContactRequest req = new AddContactRequest("Alice", List.of("+8801711000001"), null, null, "o:dev-42");
+        resource().add(null, OWNER_E164, req);
+        assertEquals("o:dev-42", publisher.last().originId());   // resource -> normalizer -> event wiring
     }
 
     @Test

@@ -34,6 +34,7 @@ class ContactEventWireTest {
         assertEquals("phonebook", j.get("source").asText());
         assertEquals(7, j.get("version").asInt());
         assertFalse(j.has("ownerPersonId"), "owner is implied by the subject, never in the body");
+        assertFalse(j.has("originId"), "optional reconcile key is OMITTED when the producer minted none");
 
         JsonNode c = j.get("card");
         assertEquals("p:42", c.get("uid").asText());
@@ -58,6 +59,16 @@ class ContactEventWireTest {
     }
 
     @Test
+    void contactUpsertEchoesOriginIdWhenPresent() throws Exception {
+        ContactCard card = new ContactCard(null, "Alice", null, null, List.of(Handle.phone("+8801711000001")));
+        ContactEvent event = ContactEvent.upsert("c:abc", null, "manual", 3, card, "o:dev-7");
+
+        JsonNode j = om.readTree(om.writeValueAsString(event));
+
+        assertEquals("o:dev-7", j.get("originId").asText());   // §8 RULING B — echoed for the device to reconcile
+    }
+
+    @Test
     void contactDeleteHasNoCardAndNoPerson() throws Exception {
         ContactEvent event = ContactEvent.delete("c:abc", "manual", 9);
 
@@ -69,5 +80,6 @@ class ContactEventWireTest {
         assertEquals(9, j.get("version").asInt());
         assertTrue(j.get("card").isNull());
         assertTrue(j.get("personId").isNull());
+        assertFalse(j.has("originId"), "DELETE path unaffected (RULING B) — no reconcile key");
     }
 }

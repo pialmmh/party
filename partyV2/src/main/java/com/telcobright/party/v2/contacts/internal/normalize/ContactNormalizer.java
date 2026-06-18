@@ -49,7 +49,8 @@ public class ContactNormalizer {
         if (handles.isEmpty()) return Optional.empty();
         String personId = resolvePersonId(handles);
         ContactCard card = new ContactCard(personId, raw.fullName(), raw.label(), raw.note(), handles);
-        return Optional.of(applyUpsert(ownerPersonId, ContactHashing.contactId(handles), personId, source, card));
+        return Optional.of(applyUpsert(ownerPersonId, ContactHashing.contactId(handles),
+                personId, source, card, raw.originId()));
     }
 
     /** Tombstone one entry. Idempotent — a second delete stores nothing and emits nothing. */
@@ -64,15 +65,15 @@ public class ContactNormalizer {
     // ── named steps ───────────────────────────────────────────────────────
 
     private IngestResult applyUpsert(String owner, String contactId, String personId,
-                                     ContactSource source, ContactCard card) {
-        String hash = ContactHashing.contentHash(card);
+                                     ContactSource source, ContactCard card, String originId) {
+        String hash = ContactHashing.contentHash(card);   // originId is NOT hashed -> idempotency unaffected
         Optional<Entry> existing = entries.find(owner, contactId);
         if (existing.isPresent() && !existing.get().deleted()
                 && hash.equals(existing.get().contentHash())) {
-            return new IngestResult(contactId, existing.get().version(), false);   // unchanged
+            return new IngestResult(contactId, existing.get().version(), false);   // unchanged: no store, no event
         }
-        long version = entries.upsert(owner, contactId, hash, personId, source.wire(), card);
-        publisher.publish(owner, ContactEvent.upsert(contactId, personId, source.wire(), version, card));
+        long version = entries.upsert(owner, contactId, hash, personId, source.wire(), card, originId);
+        publisher.publish(owner, ContactEvent.upsert(contactId, personId, source.wire(), version, card, originId));
         return new IngestResult(contactId, version, true);
     }
 

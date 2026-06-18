@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
 public final class InMemoryContactEntryStore implements ContactEntryStore {
 
     private record Stored(String hash, long version, String personId, String source,
-                          ContactCard card, boolean deleted) {}
+                          ContactCard card, String originId, boolean deleted) {}
 
     private final Map<String, Stored> byEntry = new ConcurrentHashMap<>();   // owner|contactId
     private final Map<String, AtomicLong> versionByOwner = new ConcurrentHashMap<>();
@@ -29,17 +29,24 @@ public final class InMemoryContactEntryStore implements ContactEntryStore {
 
     @Override
     public long upsert(String ownerPersonId, String contactId, String contentHash,
-                       String personId, String source, ContactCard card) {
+                       String personId, String source, ContactCard card, String originId) {
         long version = nextVersion(ownerPersonId);
-        byEntry.put(key(ownerPersonId, contactId), new Stored(contentHash, version, personId, source, card, false));
+        byEntry.put(key(ownerPersonId, contactId),
+                new Stored(contentHash, version, personId, source, card, originId, false));
         return version;
     }
 
     @Override
     public long tombstone(String ownerPersonId, String contactId) {
         long version = nextVersion(ownerPersonId);
-        byEntry.put(key(ownerPersonId, contactId), new Stored("DELETED", version, null, null, null, true));
+        byEntry.put(key(ownerPersonId, contactId), new Stored("DELETED", version, null, null, null, null, true));
         return version;
+    }
+
+    /** Test accessor: the stored reconcile key for an entry (or null). */
+    public String storedOriginId(String ownerPersonId, String contactId) {
+        Stored s = byEntry.get(key(ownerPersonId, contactId));
+        return s == null ? null : s.originId();
     }
 
     @Override

@@ -33,7 +33,7 @@ import java.util.List;
  * initial-sync read. Owner identity = the §2 device JWT (or the dev header),
  * resolved to the owner's personId.
  *
- *   POST   /contacts/entry    { fullName, handles[], label?, note? } -> { contactId, version, changed }
+ *   POST   /contacts/entry    { fullName, handles[], label?, note?, originId? } -> { contactId, version, changed }
  *   DELETE /contacts/entry/{contactId}?source=manual|phonebook       -> { contactId, version, changed }  (tombstone)
  *   GET    /contacts/snapshot?cursor=&limit=  -> { owner, contacts[], cursor, nextCursor }  (paged at core.sync.batchSize)
  *   POST   /contacts/phonebook  (zip)  -> 202 { jobId }   // 🚧 NOT BUILT (deferred — client bulk wire-format unpinned)
@@ -49,7 +49,9 @@ public class ContactFeedResource {
     @Inject PartyDirectory directory;
     @Inject SyncConfig sync;
 
-    public record AddContactRequest(String fullName, List<String> handles, String label, String note) {}
+    // originId = the OPTIONAL client-minted reconcile key (§8 RULING B); echoed on the published event.
+    public record AddContactRequest(String fullName, List<String> handles, String label, String note,
+                                    String originId) {}
 
     public record AddContactResponse(String contactId, long version, boolean changed) {}
 
@@ -69,7 +71,7 @@ public class ContactFeedResource {
                                   AddContactRequest req) {
         if (req == null) throw Denied.badRequest("missing body");
         String me = ownerPersonId(auth, devAccount);
-        RawContact raw = new RawContact(req.fullName(), req.handles(), req.label(), req.note());
+        RawContact raw = new RawContact(req.fullName(), req.handles(), req.label(), req.note(), req.originId());
         IngestResult result = normalizer.ingest(me, raw, ContactSource.MANUAL)
                 .orElseThrow(() -> Denied.badRequest("no usable handle — give a phone number or an email"));
         return new AddContactResponse(result.contactId(), result.version(), result.changed());

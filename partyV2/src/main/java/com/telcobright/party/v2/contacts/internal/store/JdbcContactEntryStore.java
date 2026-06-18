@@ -37,6 +37,7 @@ public class JdbcContactEntryStore implements ContactEntryStore {
               content_hash    VARCHAR(64) NOT NULL,
               person_id       VARCHAR(64) NULL,
               source          VARCHAR(16) NULL,
+              origin_id       VARCHAR(64) NULL,
               card_json       JSON        NULL,
               deleted         TINYINT(1)  NOT NULL DEFAULT 0,
               created_at      TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -77,10 +78,10 @@ public class JdbcContactEntryStore implements ContactEntryStore {
 
     @Override
     public long upsert(String ownerPersonId, String contactId, String contentHash,
-                       String personId, String source, ContactCard card) {
+                       String personId, String source, ContactCard card, String originId) {
         ensureSchema();
         String cardJson = writeCard(card);
-        return withSeqRetry(() -> upsertOnce(ownerPersonId, contactId, contentHash, personId, source, cardJson));
+        return withSeqRetry(() -> upsertOnce(ownerPersonId, contactId, contentHash, personId, source, cardJson, originId));
     }
 
     @Override
@@ -123,18 +124,19 @@ public class JdbcContactEntryStore implements ContactEntryStore {
     // ── internals ─────────────────────────────────────────────────────────
 
     private long upsertOnce(String owner, String contactId, String hash, String personId,
-                            String source, String cardJson) throws SQLException {
+                            String source, String cardJson, String originId) throws SQLException {
         try (Connection c = ds.getConnection()) {
             c.setAutoCommit(false);
             try {
                 long seq = nextSeq(c, owner);
                 try (PreparedStatement st = c.prepareStatement("""
                         INSERT INTO contact_entry
-                          (owner_person_id, contact_id, version, content_hash, person_id, source, card_json, deleted)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+                          (owner_person_id, contact_id, version, content_hash, person_id, source, origin_id, card_json, deleted)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
                         ON DUPLICATE KEY UPDATE
                           version = VALUES(version), content_hash = VALUES(content_hash),
                           person_id = VALUES(person_id), source = VALUES(source),
+                          origin_id = VALUES(origin_id),
                           card_json = VALUES(card_json), deleted = 0""")) {
                     st.setString(1, owner);
                     st.setString(2, contactId);
@@ -142,7 +144,8 @@ public class JdbcContactEntryStore implements ContactEntryStore {
                     st.setString(4, hash);
                     st.setString(5, personId);
                     st.setString(6, source);
-                    st.setString(7, cardJson);
+                    st.setString(7, originId);
+                    st.setString(8, cardJson);
                     st.executeUpdate();
                 }
                 c.commit();
@@ -247,9 +250,26 @@ public class JdbcContactEntryStore implements ContactEntryStore {
             try (Connection c = ds.getConnection(); Statement st = c.createStatement()) {
                 st.execute(DDL);
                 st.execute(DDL_SEQ);
+                migrate(c);            // additive columns onto a table created before they existed
                 schemaReady = true;
             } catch (SQLException e) {
                 throw new IllegalStateException("contact entry schema init failed: " + e.getMessage(), e);
+            }
+        }
+    }
+
+    /** Idempotent additive migrations (the live table predates these columns). */
+    private static void migrate(Connection c) {
+        addColumnIfMissing(c, "ALTER TABLE contact_entry ADD COLUMN origin_id VARCHAR(64) NULL");  // §8 RULING B
+    }
+
+    /** Run an ADD COLUMN, ignoring MySQL 1060 (duplicate column) so it is safe to re-run. */
+    private static void addColumnIfMissing(Connection c, String alterSql) {
+        try (Statement st = c.createStatement()) {
+            st.execute(alterSql);
+        } catch (SQLException e) {
+            if (e.getErrorCode() != 1060) {   // 1060 = column already there -> already migrated
+                throw new IllegalStateException("contact entry migration failed: " + e.getMessage(), e);
             }
         }
     }
