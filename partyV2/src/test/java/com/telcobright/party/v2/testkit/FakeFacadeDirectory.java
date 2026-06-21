@@ -13,12 +13,20 @@ import java.util.Optional;
 public final class FakeFacadeDirectory implements FacadeDirectory {
 
     private final Map<String, Facade> byE164 = new LinkedHashMap<>();
+    private final Map<String, String> passwordByE164 = new LinkedHashMap<>();
     private long nextId = 1;
 
     public FakeFacadeDirectory seed(String e164, String status, String displayName) {
         long id = nextId++;
         byE164.put(e164, new Facade(id, 100 + id, e164,
                 E164.digits(e164) + "@localhost", status, displayName));
+        return this;
+    }
+
+    /** Seed a facade WITH a device-login password (for checkCredentials tests). */
+    public FakeFacadeDirectory seedLogin(String e164, String status, String displayName, String password) {
+        seed(e164, status, displayName);
+        passwordByE164.put(e164, password);
         return this;
     }
 
@@ -40,5 +48,13 @@ public final class FakeFacadeDirectory implements FacadeDirectory {
             if (f != null) out.add(f);
         }
         return out;
+    }
+
+    /** Mirrors Odoo check_credentials: summary on a matching password + ACTIVE facade, else empty. */
+    @Override public Optional<Facade> checkCredentials(String e164, String password) {
+        Facade f = byE164.get(e164);
+        if (f == null || !"active".equals(f.status())) return Optional.empty();
+        return password != null && password.equals(passwordByE164.get(e164))
+                ? Optional.of(f) : Optional.empty();
     }
 }

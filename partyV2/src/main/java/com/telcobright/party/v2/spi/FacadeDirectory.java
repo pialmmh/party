@@ -24,4 +24,21 @@ public interface FacadeDirectory {
 
     /** Batch read for contact sync: which of these numbers have facades. */
     List<Facade> searchByE164In(List<String> e164s);
+
+    /**
+     * Validate a device-login credential for a phone — the password is checked
+     * INSIDE the directory (Odoo {@code secure_link.facade.check_credentials};
+     * the hash never leaves it). The federated front of the prod device-login
+     * (#170 B-direct, ratified §8b).
+     *
+     * @return the facade on a valid, ACTIVE credential; empty on a plain auth
+     *         failure (mismatch / inactive / no password) — NOT a transient miss.
+     * @throws com.telcobright.party.v2.model.ProviderException if the directory
+     *         is unreachable (a transient error the caller surfaces as 503).
+     *
+     * Default = empty (fail-closed: a directory without credential login refuses).
+     */
+    default Optional<Facade> checkCredentials(String e164, String password) {
+        return Optional.empty();
+    }
 }

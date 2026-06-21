@@ -78,6 +78,27 @@ public class OdooFacadeClient implements FacadeDirectory {
         return out;
     }
 
+    /**
+     * Validate a device-login credential — delegates to the facade's
+     * {@code check_credentials(e164, password)}: the pbkdf2 verify happens in
+     * Odoo and the hash never leaves it (#170 B-direct). The addon returns the
+     * facade summary on a match, JSON {@code false} on mismatch / inactive /
+     * no-password — both map cleanly to present / empty.
+     */
+    @Override
+    public Optional<Facade> checkCredentials(String e164, String password) {
+        JsonNode r = executeKw("check_credentials",
+                List.of(e164, password == null ? Boolean.FALSE : password), Map.of());
+        if (r == null || !r.isObject()) return Optional.empty();   // false / null = bad credential
+        return Optional.of(new Facade(
+                r.path("facade_id").asLong(),
+                r.path("partner_id").asLong(),
+                r.path("e164").asText(),
+                r.path("jid").asText(),
+                r.path("status").asText(),
+                r.path("display_name").asText(null)));
+    }
+
     // ── internals ─────────────────────────────────────────────────────────
 
     private JsonNode executeKw(String method, List<?> args, Map<String, ?> kwargs) {

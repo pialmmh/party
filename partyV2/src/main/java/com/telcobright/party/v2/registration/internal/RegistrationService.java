@@ -63,12 +63,21 @@ public class RegistrationService {
         requireResourceSafe(deviceId);
         String e164 = consumeChallenge(otpToken, code);
         FacadeDirectory.Facade facade = provisionActiveFacade(e164);
-        requireEntitlement(facade.partnerId(), e164);
-        String refreshToken = activateDevice(facade, deviceId);
-        String jwt = minter.mint(facade.jid(), deviceId, PersonId.of(facade.partnerId()));
-        events.emit(new SubscriberProvisioned(facade.partnerId(), facade.e164(), facade.jid(), deviceId));
-        return new VerifiedDevice(facade.jid(), jwt, refreshToken, facade.displayName(),
-                cfg.xmpp().domain(), cfg.xmpp().host(), cfg.xmpp().port());
+        return issueDeviceFor(facade, deviceId);
+    }
+
+    /**
+     * Prod device-login (frozen §8b, #170 B-direct): validate phone + credential
+     * against the Odoo facade ({@code check_credentials} — the hash stays in Odoo),
+     * then issue the SAME device bundle as OTP-verify. The federated front of the
+     * Keycloak→party→Odoo identity stack; no OTP, no new crypto (the device-JWT
+     * stays HS256).
+     */
+    public VerifiedDevice loginDevice(String phone, String password, String deviceId) {
+        requireResourceSafe(deviceId);
+        String e164 = normalizeOrDeny(phone);
+        FacadeDirectory.Facade facade = authenticateActiveFacade(e164, password);
+        return issueDeviceFor(facade, deviceId);
     }
 
     public RefreshedTokens refresh(String refreshToken) {
@@ -136,6 +145,35 @@ public class RegistrationService {
             throw RegistrationDenied.forbidden("account is not active");
         }
         return facade;
+    }
+
+    /** #170 login: validate the credential in the facade (Odoo holds the hash). */
+    private FacadeDirectory.Facade authenticateActiveFacade(String e164, String password) {
+        if (password == null || password.isEmpty()) {
+            throw RegistrationDenied.unauthorized("invalid credentials");
+        }
+        FacadeDirectory.Facade facade;
+        try {
+            facade = facades.checkCredentials(e164, password)
+                    .orElseThrow(() -> RegistrationDenied.unauthorized("invalid credentials"));
+        } catch (ProviderException e) {
+            LOG.error("odoo credential check failed: " + e.getMessage());
+            throw RegistrationDenied.unavailable("login unavailable");
+        }
+        if (!"active".equals(facade.status())) {
+            throw RegistrationDenied.forbidden("account is not active");
+        }
+        return facade;
+    }
+
+    /** Entitlement gate → activate the device → mint the bundle. Shared by OTP-verify + login. */
+    private VerifiedDevice issueDeviceFor(FacadeDirectory.Facade facade, String deviceId) {
+        requireEntitlement(facade.partnerId(), facade.e164());
+        String refreshToken = activateDevice(facade, deviceId);
+        String jwt = minter.mint(facade.jid(), deviceId, PersonId.of(facade.partnerId()));
+        events.emit(new SubscriberProvisioned(facade.partnerId(), facade.e164(), facade.jid(), deviceId));
+        return new VerifiedDevice(facade.jid(), jwt, refreshToken, facade.displayName(),
+                cfg.xmpp().domain(), cfg.xmpp().host(), cfg.xmpp().port());
     }
 
     private void requireEntitlement(long partnerId, String e164) {

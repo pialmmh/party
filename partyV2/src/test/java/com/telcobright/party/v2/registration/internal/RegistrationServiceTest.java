@@ -177,6 +177,76 @@ class RegistrationServiceTest {
         assertEquals(401, status(e), "challenge is single-use");
     }
 
+    // ── loginDevice (#170 prod device-login) ─────────────────────────────
+
+    @Test
+    void loginDevice_validCredential_activatesAndMints() {
+        facades.seedLogin("+8801711000001", "active", "Rahim", "pw-correct");
+        RegistrationService.VerifiedDevice v =
+                service.loginDevice("+8801711000001", "pw-correct", "device-A-0001");
+
+        assertEquals("8801711000001@localhost", v.jid());
+        assertEquals("jwt:8801711000001@localhost:device-A-0001:p:101", v.xmppCredential());
+        assertNotNull(v.refreshToken());
+        DeviceRow row = devices.rows.get("device-A-0001");
+        assertEquals(DeviceRegistryStore.ACTIVE, row.status());
+        assertEquals(RefreshTokens.hash(v.refreshToken()), row.refreshTokenHash());
+        assertEquals(1, events.provisioned.size());
+    }
+
+    @Test
+    void loginDevice_acceptsE164PhoneAndIssuesRefreshableBundle() {
+        facades.seedLogin("+8801711000001", "active", "Rahim", "pw-correct");
+        String refresh = service.loginDevice("+8801711000001", "pw-correct", "device-A-0001").refreshToken();
+        // the bundle is the SAME as OTP-verify: the refresh token works on /token/refresh
+        RegistrationService.RefreshedTokens next = service.refresh(refresh);
+        assertNotNull(next.xmppCredential());
+        assertNotEquals(refresh, next.refreshToken());
+    }
+
+    @Test
+    void loginDevice_rejectsWrongPassword_with401_noDevice() {
+        facades.seedLogin("+8801711000001", "active", "Rahim", "pw-correct");
+        WebApplicationException e = assertThrows(WebApplicationException.class,
+                () -> service.loginDevice("+8801711000001", "pw-wrong", "device-A-0001"));
+        assertEquals(401, status(e));
+        assertTrue(devices.rows.isEmpty(), "no device activated on a bad credential");
+    }
+
+    @Test
+    void loginDevice_rejectsUnknownNumber_with401() {
+        WebApplicationException e = assertThrows(WebApplicationException.class,
+                () -> service.loginDevice("+8801799999999", "whatever", "device-A-0001"));
+        assertEquals(401, status(e));
+    }
+
+    @Test
+    void loginDevice_rejectsBlankPassword_with401() {
+        facades.seedLogin("+8801711000001", "active", "Rahim", "pw-correct");
+        WebApplicationException e = assertThrows(WebApplicationException.class,
+                () -> service.loginDevice("+8801711000001", "", "device-A-0001"));
+        assertEquals(401, status(e));
+    }
+
+    @Test
+    void loginDevice_deniesWithoutEntitlement_with403() {
+        cfg.entitlementEnforce = true;
+        entitled = false;
+        facades.seedLogin("+8801711000001", "active", "Rahim", "pw-correct");
+        WebApplicationException e = assertThrows(WebApplicationException.class,
+                () -> service.loginDevice("+8801711000001", "pw-correct", "device-A-0001"));
+        assertEquals(403, status(e));
+        assertTrue(devices.rows.isEmpty(), "no device activated on denial");
+    }
+
+    @Test
+    void loginDevice_rejectsResourceUnsafeDeviceId_with400() {
+        facades.seedLogin("+8801711000001", "active", "Rahim", "pw-correct");
+        WebApplicationException e = assertThrows(WebApplicationException.class,
+                () -> service.loginDevice("+8801711000001", "pw-correct", "bad id!"));
+        assertEquals(400, status(e));
+    }
+
     // ── refresh ──────────────────────────────────────────────────────────
 
     @Test

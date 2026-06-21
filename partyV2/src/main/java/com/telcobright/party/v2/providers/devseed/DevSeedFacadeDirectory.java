@@ -70,6 +70,18 @@ public class DevSeedFacadeDirectory implements FacadeDirectory {
         return out;
     }
 
+    /**
+     * DEV ONLY: a seeded number logs in with ANY password (mirrors
+     * {@code otp.dev-mode}); unseeded numbers are rejected. This whole bean is
+     * {@code @IfBuildProperty securelink.devseed.enabled=true} — it never ships
+     * to prod, where {@link com.telcobright.party.v2.providers.odoo.OdooFacadeClient}
+     * does the real pbkdf2 check in Odoo.
+     */
+    @Override
+    public Optional<Facade> checkCredentials(String e164, String password) {
+        return findByE164(e164);
+    }
+
     private static Facade facadeFor(String e164, String displayName) {
         long partnerId = Long.parseLong(E164.digits(e164));   // stable synthetic id per number
         return new Facade(partnerId, partnerId, e164, E164.digits(e164) + "@localhost", "active", displayName);
