@@ -60,6 +60,8 @@ cat > "$CONF" <<EOF
 quarkus.datasource.jdbc.url=jdbc:mysql://10.10.185.1:3306/party_v2?sslMode=DISABLED&serverTimezone=UTC&allowPublicKeyRetrieval=true&connectTimeout=5000&socketTimeout=30000&tcpKeepAlive=true
 party.v2.contacts.nats.enabled=true
 party.v2.contacts.nats.url=nats://10.10.185.1:4222
+party.v2.threads.nats.enabled=true
+party.v2.threads.nats.url=nats://10.10.185.1:4222
 party.v2.registration.xmpp.host=10.10.185.1
 party.v2.registration.otp.dev-mode=true
 # tenant t1 -> the live Odoo 19 on this box (overlay IP). partyV2 authenticates end
