@@ -131,6 +131,7 @@ class RegistrationServiceTest {
 
         assertEquals("8801711000001@localhost", v.jid());
         assertEquals("jwt:8801711000001@localhost:device-A-0001:p:101", v.xmppCredential());  // personId flows into mint
+        assertEquals("p:101", v.personId());   // additive bundle field for the proxy feed ?person=
         assertNotNull(v.refreshToken());
 
         DeviceRow row = devices.rows.get("device-A-0001");
@@ -187,6 +188,7 @@ class RegistrationServiceTest {
 
         assertEquals("8801711000001@localhost", v.jid());
         assertEquals("jwt:8801711000001@localhost:device-A-0001:p:101", v.xmppCredential());
+        assertEquals("p:101", v.personId());
         assertNotNull(v.refreshToken());
         DeviceRow row = devices.rows.get("device-A-0001");
         assertEquals(DeviceRegistryStore.ACTIVE, row.status());

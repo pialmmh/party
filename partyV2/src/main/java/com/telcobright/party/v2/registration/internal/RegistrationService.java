@@ -36,8 +36,12 @@ public class RegistrationService {
     /** device_id doubles as the XMPP resource — keep it resource-safe. */
     private static final Pattern DEVICE_ID = Pattern.compile("^[A-Za-z0-9._-]{8,64}$");
 
+    // personId = the owner's global person key (= the JWT person_id claim, p:<partnerId>).
+    // Additive bundle field (architect ruling 2026-06-24): the client needs its OWN personId to
+    // form the proxy feed subject token(personId) for ?person= — the JWT claim is opaque to it.
     public record VerifiedDevice(String jid, String xmppCredential, String refreshToken,
-                                 String displayName, String domain, String host, int port) {}
+                                 String displayName, String domain, String host, int port,
+                                 String personId) {}
 
     public record RefreshedTokens(String xmppCredential, String refreshToken) {}
 
@@ -170,10 +174,11 @@ public class RegistrationService {
     private VerifiedDevice issueDeviceFor(FacadeDirectory.Facade facade, String deviceId) {
         requireEntitlement(facade.partnerId(), facade.e164());
         String refreshToken = activateDevice(facade, deviceId);
-        String jwt = minter.mint(facade.jid(), deviceId, PersonId.of(facade.partnerId()));
+        String personId = PersonId.of(facade.partnerId());          // = the JWT person_id claim
+        String jwt = minter.mint(facade.jid(), deviceId, personId);
         events.emit(new SubscriberProvisioned(facade.partnerId(), facade.e164(), facade.jid(), deviceId));
         return new VerifiedDevice(facade.jid(), jwt, refreshToken, facade.displayName(),
-                cfg.xmpp().domain(), cfg.xmpp().host(), cfg.xmpp().port());
+                cfg.xmpp().domain(), cfg.xmpp().host(), cfg.xmpp().port(), personId);
     }
 
     private void requireEntitlement(long partnerId, String e164) {

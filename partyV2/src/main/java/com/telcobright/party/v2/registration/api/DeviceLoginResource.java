@@ -39,7 +39,8 @@ public class DeviceLoginResource {
                                @JsonProperty("device_id") String deviceId) {}
 
     public record LoginResponse(String jid, String xmppCredential, String refreshToken,
-                                String displayName, String domain, String host, int port) {}
+                                String displayName, String domain, String host, int port,
+                                String personId) {}
 
     @POST
     @Path("/login")
@@ -49,6 +50,6 @@ public class DeviceLoginResource {
         RegistrationService.VerifiedDevice v =
                 service.loginDevice(phone, req.password(), req.deviceId());
         return new LoginResponse(v.jid(), v.xmppCredential(), v.refreshToken(),
-                v.displayName(), v.domain(), v.host(), v.port());
+                v.displayName(), v.domain(), v.host(), v.port(), v.personId());
     }
 }

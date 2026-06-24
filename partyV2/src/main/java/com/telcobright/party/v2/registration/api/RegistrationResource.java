@@ -35,7 +35,8 @@ public class RegistrationResource {
                                    @JsonProperty("device_id") String deviceId) {}
 
     public record OtpVerifyResponse(String jid, String xmppCredential, String refreshToken,
-                                    String displayName, String domain, String host, int port) {}
+                                    String displayName, String domain, String host, int port,
+                                    String personId) {}
 
     @POST
     @Path("/otp/start")
@@ -52,6 +53,6 @@ public class RegistrationResource {
         RegistrationService.VerifiedDevice v =
                 service.verifyOtp(req.otpToken(), req.code(), req.deviceId());
         return new OtpVerifyResponse(v.jid(), v.xmppCredential(), v.refreshToken(),
-                v.displayName(), v.domain(), v.host(), v.port());
+                v.displayName(), v.domain(), v.host(), v.port(), v.personId());
     }
 }
